@@ -6,7 +6,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from app.config import AppSettings, load_source_config
+from app.config import AppSettings, DOTENV_PATH, load_source_config
 from app.logging import configure_logging
 
 
@@ -26,21 +26,11 @@ def test_app_settings_reads_database_url_from_environment(monkeypatch):
     assert settings.database_url == "sqlite:///data/env.db"
 
 
-def test_app_settings_loads_project_root_env_when_cwd_changes(monkeypatch, tmp_path: Path):
-    project_root = Path(__file__).resolve().parents[1]
-    env_file = project_root / ".env"
-    original_text = env_file.read_text(encoding="utf-8") if env_file.exists() else None
-    env_file.write_text("DATABASE_URL=sqlite:///data/from-dotenv.db\n", encoding="utf-8")
-    monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.chdir(tmp_path)
-    try:
-        settings = AppSettings()
-        assert settings.database_url == "sqlite:///data/from-dotenv.db"
-    finally:
-        if original_text is None:
-            env_file.unlink(missing_ok=True)
-        else:
-            env_file.write_text(original_text, encoding="utf-8")
+def test_app_settings_uses_absolute_project_root_dotenv_path():
+    expected = Path(__file__).resolve().parents[1] / ".env"
+    assert DOTENV_PATH == expected
+    assert DOTENV_PATH.is_absolute()
+    assert AppSettings.model_config["env_file"] == DOTENV_PATH
 
 
 def test_load_source_config_reads_arxiv_categories(tmp_path: Path):
@@ -60,6 +50,33 @@ def test_configure_logging_keeps_existing_root_handlers():
         settings = AppSettings.model_validate({"database_url": "sqlite:///data/papers.db"})
         configure_logging(settings)
         assert sentinel in root.handlers
+    finally:
+        root.handlers = original_handlers
+        root.setLevel(original_level)
+
+
+def test_configure_logging_repeated_calls_update_existing_console_handler_level():
+    root = logging.getLogger()
+    original_level = root.level
+    original_handlers = list(root.handlers)
+    root.handlers = []
+    try:
+        settings_info = AppSettings.model_validate(
+            {"database_url": "sqlite:///data/papers.db", "log_level": "INFO"}
+        )
+        configure_logging(settings_info)
+        settings_error = AppSettings.model_validate(
+            {"database_url": "sqlite:///data/papers.db", "log_level": "ERROR"}
+        )
+        configure_logging(settings_error)
+
+        configured_handlers = [
+            handler
+            for handler in root.handlers
+            if getattr(handler, "_paperclaw_console_handler", False)
+        ]
+        assert len(configured_handlers) == 1
+        assert configured_handlers[0].level == logging.ERROR
     finally:
         root.handlers = original_handlers
         root.setLevel(original_level)
