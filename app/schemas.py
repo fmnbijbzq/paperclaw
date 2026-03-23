@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 class PaperRecord(BaseModel):
     source: str
     source_paper_id: str
+    dedup_key: str | None = None
     title: str
     abstract: str | None = None
     authors: list[str] = Field(default_factory=list)
@@ -22,7 +23,7 @@ class PaperRecord(BaseModel):
 
 
 class SourceFetchResult(BaseModel):
-    source_name: str
+    source: str
     fetched_at: datetime
     papers: list[PaperRecord] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)

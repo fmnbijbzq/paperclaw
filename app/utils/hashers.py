@@ -8,7 +8,7 @@ _WHITESPACE_RE = re.compile(r"\s+")
 
 
 def normalize_title(value: str) -> str:
-    cleaned = _PUNCTUATION_RE.sub("", value).lower()
+    cleaned = _PUNCTUATION_RE.sub(" ", value).lower()
     collapsed = _WHITESPACE_RE.sub(" ", cleaned).strip()
     return collapsed
 
@@ -17,8 +17,7 @@ def _normalize_token(value: str | None) -> str | None:
     if not value:
         return None
 
-    cleaned = _PUNCTUATION_RE.sub("", value).lower()
-    collapsed = _WHITESPACE_RE.sub(" ", cleaned).strip()
+    collapsed = normalize_title(value)
     return collapsed or None
 
 
