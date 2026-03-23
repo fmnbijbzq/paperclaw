@@ -1,0 +1,4 @@
+arxiv:
+  enabled: true
+  categories:
+    - cs.CV
