@@ -5,6 +5,9 @@ from pathlib import Path
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import yaml
 
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DOTENV_PATH = PROJECT_ROOT / ".env"
+
 
 class AppSettings(BaseSettings):
     database_url: str
@@ -13,7 +16,7 @@ class AppSettings(BaseSettings):
     timezone: str = "Asia/Shanghai"
     max_notify_items: int = 10
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=DOTENV_PATH,
         env_file_encoding="utf-8",
         extra="ignore",
     )
