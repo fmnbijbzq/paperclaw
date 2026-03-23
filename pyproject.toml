@@ -1,0 +1,19 @@
+[project]
+name = "paperclaw"
+version = "0.1.0"
+description = "AI vision paper crawler"
+requires-python = ">=3.12"
+
+[project.dependencies]
+httpx = "*"
+sqlalchemy = "*"
+pydantic = "*"
+pydantic-settings = "*"
+pyyaml = "*"
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[build-system]
+requires = ["hatchling>=1.0.0"]
+build-backend = "hatchling.build"
