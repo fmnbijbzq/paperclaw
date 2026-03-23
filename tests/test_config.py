@@ -44,12 +44,20 @@ def test_configure_logging_keeps_existing_root_handlers():
     root = logging.getLogger()
     original_level = root.level
     original_handlers = list(root.handlers)
+    root.setLevel(logging.WARNING)
     sentinel = logging.NullHandler()
     root.addHandler(sentinel)
     try:
-        settings = AppSettings.model_validate({"database_url": "sqlite:///data/papers.db"})
+        settings = AppSettings.model_validate(
+            {"database_url": "sqlite:///data/papers.db", "log_level": "ERROR"}
+        )
         configure_logging(settings)
         assert sentinel in root.handlers
+        assert root.level == logging.WARNING
+        assert not any(
+            getattr(handler, "_paperclaw_console_handler", False)
+            for handler in root.handlers
+        )
     finally:
         root.handlers = original_handlers
         root.setLevel(original_level)
