@@ -1,18 +1,56 @@
-from importlib import util
 from pathlib import Path
+import sys
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from run_once import main, run_pipeline_from_config
 
 
 def test_project_root_contains_run_once_script():
     assert Path("run_once.py").exists()
 
 
-def test_main_returns_zero():
-    spec = util.spec_from_file_location(
-        "run_once",
-        Path("run_once.py"),
+def test_main_returns_zero_when_pipeline_succeeds(monkeypatch):
+    monkeypatch.setattr("run_once.run_pipeline_from_config", lambda: 0)
+
+    assert main() == 0
+
+
+def test_run_pipeline_from_config_builds_enabled_sources_and_notifier(monkeypatch):
+    captured: dict = {}
+
+    class DummySettings:
+        database_url = "sqlite:///tmp/papers.db"
+        feishu_bot_webhook = "https://example.invalid/hook"
+        log_level = "INFO"
+        max_notify_items = 5
+
+    def fake_run_pipeline(*, database_url, sources, notifier):
+        captured["database_url"] = database_url
+        captured["sources"] = sources
+        captured["notifier"] = notifier
+        return 0
+
+    monkeypatch.setattr("run_once.AppSettings", lambda: DummySettings())
+    monkeypatch.setattr(
+        "run_once.load_source_config",
+        lambda path: {
+            "arxiv": {"enabled": True, "categories": ["cs.CV"]},
+            "openreview": {"enabled": True, "venues": ["CVPR"]},
+        },
     )
-    assert spec is not None
-    module = util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)  # type: ignore[union-attr]
-    assert module.main() == 0
+    monkeypatch.setattr("run_once.configure_logging", lambda settings: None)
+    monkeypatch.setattr("run_once.run_pipeline", fake_run_pipeline)
+
+    result = run_pipeline_from_config()
+
+    assert result == 0
+    assert captured["database_url"] == "sqlite:///tmp/papers.db"
+    assert [source.name for source in captured["sources"]] == ["arxiv", "openreview"]
+    assert captured["notifier"] is not None
+
+
+def test_cron_example_file_exists():
+    assert Path("scripts/setup_cron.example").exists()

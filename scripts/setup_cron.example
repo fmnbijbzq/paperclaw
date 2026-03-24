@@ -1,0 +1,1 @@
+0 8 * * * cd /root/workspace/paperclaw && /usr/bin/python3 run_once.py >> logs/cron.log 2>&1
