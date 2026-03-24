@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 
 from sqlalchemy import create_engine, func, inspect, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -8,6 +9,12 @@ from sqlalchemy.orm import Session, sessionmaker
 from app.models import Base, CrawlRun, Notification, Paper, PaperVersion
 from app.schemas import PaperRecord
 from app.utils.time import utc_now
+
+
+@dataclass
+class UpsertPaperResult:
+    paper: Paper
+    created: bool
 
 
 class Database:
@@ -51,6 +58,9 @@ class Database:
             return crawl_run
 
     def upsert_paper(self, record: PaperRecord) -> Paper:
+        return self.upsert_paper_with_status(record).paper
+
+    def upsert_paper_with_status(self, record: PaperRecord) -> UpsertPaperResult:
         with self._session() as session:
             paper = session.scalar(
                 select(Paper).where(
@@ -72,7 +82,7 @@ class Database:
                 session.add(self._build_version(paper))
 
             session.commit()
-            return paper
+            return UpsertPaperResult(paper=paper, created=created)
 
     def record_notification(self, *, destination: str, papers: Iterable[Paper]) -> list[Notification]:
         notifications: list[Notification] = []

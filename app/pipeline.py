@@ -35,10 +35,8 @@ def run_pipeline(database_url: str, sources: list, notifier=None) -> PipelineSum
 
             for record in fetched_records:
                 normalized = normalize_paper(record)
-                before_count = db.count_papers()
-                db.upsert_paper(normalized)
-                after_count = db.count_papers()
-                if after_count > before_count:
+                result = db.upsert_paper_with_status(normalized)
+                if result.created:
                     summary.total_new += 1
                     new_count += 1
                     summary.new_papers.append(normalized)

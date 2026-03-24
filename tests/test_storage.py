@@ -44,6 +44,19 @@ def test_upsert_paper_is_idempotent(tmp_path):
     assert db.count_papers() == 1
 
 
+def test_upsert_paper_with_status_reports_created_only_once(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    paper = _build_paper()
+
+    first = db.upsert_paper_with_status(paper)
+    second = db.upsert_paper_with_status(paper)
+
+    assert first.created is True
+    assert second.created is False
+    assert first.paper.paper_id == second.paper.paper_id
+
+
 def test_list_unnotified_papers_excludes_notified_records(tmp_path):
     db = Database(f"sqlite:///{tmp_path/'papers.db'}")
     db.create_schema()

@@ -51,3 +51,18 @@ def test_run_pipeline_is_idempotent_across_repeated_runs(tmp_path):
     assert second.total_new == 0
     assert second.total_fetched == 1
     assert db.count_papers() == 1
+
+
+def test_run_pipeline_does_not_use_global_counts_for_insert_detection(tmp_path, monkeypatch):
+    def fail_count(self):
+        raise AssertionError("count_papers should not be used for insert detection")
+
+    monkeypatch.setattr(Database, "count_papers", fail_count)
+
+    summary = run_pipeline(
+        database_url=f"sqlite:///{tmp_path/'papers.db'}",
+        sources=[FakeSource()],
+        notifier=None,
+    )
+
+    assert summary.total_new == 1
