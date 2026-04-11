@@ -105,3 +105,21 @@ def test_arxiv_source_includes_lookback_window_in_query():
     source.fetch()
 
     assert "lastUpdatedDate%3A%5B" in captured_request["url"]
+
+
+def test_arxiv_source_sorts_by_latest_submitted_date_by_default():
+    captured_request: dict[str, str] = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured_request["url"] = str(request.url)
+        return httpx.Response(200, text="<?xml version='1.0'?><feed xmlns='http://www.w3.org/2005/Atom'></feed>")
+
+    source = ArxivSource(
+        base_url="https://example.test/api/query",
+        transport=httpx.MockTransport(handler),
+    )
+
+    source.fetch()
+
+    assert "sortBy=submittedDate" in captured_request["url"]
+    assert "sortOrder=descending" in captured_request["url"]

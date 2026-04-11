@@ -60,6 +60,8 @@ class ArxivSource(BaseSource):
             "search_query": query,
             "start": self.start,
             "max_results": self.max_results,
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
         }
 
     def _parse_entry(self, entry: ElementTree.Element) -> PaperRecord | None:

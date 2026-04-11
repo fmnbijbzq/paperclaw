@@ -55,3 +55,50 @@ def test_feishu_send_posts_payload():
 
     assert captured["url"] == "https://example.invalid/hook"
     assert "hello" in captured["body"]
+
+
+def test_feishu_send_adds_signature_when_secret_is_configured():
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = request.read().decode("utf-8")
+        return httpx.Response(200, json={"StatusCode": 0})
+
+    notifier = FeishuBotNotifier(
+        "https://example.invalid/hook",
+        secret="test-secret",
+        transport=httpx.MockTransport(handler),
+    )
+
+    notifier.send({"msg_type": "text", "content": {"text": "hello"}})
+
+    assert '"timestamp"' in captured["body"]
+    assert '"sign"' in captured["body"]
+    assert '"msg_type":"text"' in captured["body"]
+
+
+def test_feishu_notifier_notify_builds_and_sends_payload():
+    captured: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        captured["body"] = request.read().decode("utf-8")
+        return httpx.Response(200, json={"StatusCode": 0})
+
+    notifier = FeishuBotNotifier(
+        "https://example.invalid/hook",
+        transport=httpx.MockTransport(handler),
+    )
+
+    class Summary:
+        total_new = 1
+        total_fetched = 2
+        new_papers = [
+            {
+                "title": "Vision Paper",
+                "paper_url": "https://example.test/paper",
+            }
+        ]
+
+    notifier.notify(Summary())
+
+    assert "Vision Paper" in captured["body"]

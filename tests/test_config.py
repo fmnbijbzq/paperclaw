@@ -15,15 +15,19 @@ def test_app_settings_reads_database_url():
         {
             "database_url": "sqlite:///data/papers.db",
             "feishu_bot_webhook": "https://example.invalid/hook",
+            "feishu_bot_secret": "test-secret",
         }
     )
     assert settings.database_url == "sqlite:///data/papers.db"
+    assert settings.feishu_bot_secret == "test-secret"
 
 
 def test_app_settings_reads_database_url_from_environment(monkeypatch):
     monkeypatch.setenv("DATABASE_URL", "sqlite:///data/env.db")
+    monkeypatch.setenv("FEISHU_BOT_SECRET", "env-secret")
     settings = AppSettings()
     assert settings.database_url == "sqlite:///data/env.db"
+    assert settings.feishu_bot_secret == "env-secret"
 
 
 def test_app_settings_uses_absolute_project_root_dotenv_path():
