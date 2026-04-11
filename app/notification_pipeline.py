@@ -23,7 +23,6 @@ def run_notification_cycle(
     database_url: str,
     notifier,
     batch_size: int,
-    send_mode: str,
     destination: str,
 ) -> NotificationCycleSummary:
     db = Database(database_url)
@@ -36,12 +35,7 @@ def run_notification_cycle(
         LOGGER.info("没有待发送论文，结束本轮发送")
         return summary
 
-    if send_mode == "combined":
-        return _send_combined_batch(db=db, notifier=notifier, destination=destination, papers=papers, summary=summary)
-    if send_mode == "per_paper":
-        return _send_per_paper(db=db, notifier=notifier, destination=destination, papers=papers, summary=summary)
-
-    raise ValueError(f"unsupported notify send mode: {send_mode}")
+    return _send_combined_batch(db=db, notifier=notifier, destination=destination, papers=papers, summary=summary)
 
 
 def _send_combined_batch(*, db: Database, notifier, destination: str, papers: list, summary: NotificationCycleSummary):
@@ -63,32 +57,4 @@ def _send_combined_batch(*, db: Database, notifier, destination: str, papers: li
     summary.succeeded = len(papers)
     summary.succeeded_titles.extend(titles)
     LOGGER.info("飞书合并消息发送成功：%s", titles)
-    return summary
-
-
-def _send_per_paper(*, db: Database, notifier, destination: str, papers: list, summary: NotificationCycleSummary):
-    for paper in papers:
-        title = paper.title
-        summary.attempted += 1
-        summary.attempted_titles.append(title)
-        LOGGER.info("准备发送单篇飞书消息：%s", title)
-        try:
-            notifier.send_paper(paper)
-        except Exception as exc:
-            LOGGER.exception("飞书单篇消息发送失败：%s", title)
-            db.record_notification_attempt(
-                destination=destination,
-                paper=paper,
-                success=False,
-                error_message=str(exc),
-            )
-            summary.failed += 1
-            summary.failed_titles.append(title)
-            continue
-
-        db.record_notification_attempt(destination=destination, paper=paper, success=True)
-        summary.succeeded += 1
-        summary.succeeded_titles.append(title)
-        LOGGER.info("飞书单篇消息发送成功：%s", title)
-
     return summary

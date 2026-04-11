@@ -13,8 +13,6 @@ class AppSettings(BaseSettings):
     database_url: str
     feishu_bot_webhook: str | None = None
     feishu_bot_secret: str | None = None
-    notify_batch_size: int = 10
-    notify_send_mode: str = "combined"
     log_level: str = "INFO"
     log_format: str = "%(asctime)s %(levelname)s %(name)s: %(message)s"
     log_include_location: bool = False

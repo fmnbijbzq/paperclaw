@@ -26,7 +26,6 @@ class FakeNotifier:
     def __init__(self, *, fail_titles: set[str] | None = None) -> None:
         self.fail_titles = fail_titles or set()
         self.sent_batches: list[list[str]] = []
-        self.sent_papers: list[str] = []
 
     def send_combined(self, papers):
         titles = [paper.title for paper in papers]
@@ -34,12 +33,6 @@ class FakeNotifier:
         failing = self.fail_titles.intersection(titles)
         if failing:
             raise RuntimeError(f"failed batch: {sorted(failing)!r}")
-        return {"StatusCode": 0}
-
-    def send_paper(self, paper):
-        self.sent_papers.append(paper.title)
-        if paper.title in self.fail_titles:
-            raise RuntimeError(f"failed paper: {paper.title}")
         return {"StatusCode": 0}
 
 
@@ -55,7 +48,6 @@ def test_run_notification_cycle_marks_successful_combined_batch(tmp_path):
         database_url=database_url,
         notifier=notifier,
         batch_size=2,
-        send_mode="combined",
         destination="feishu",
     )
 
@@ -82,14 +74,12 @@ def test_run_notification_cycle_records_failed_combined_batch_and_retries_next_t
         database_url=database_url,
         notifier=notifier,
         batch_size=1,
-        send_mode="combined",
         destination="feishu",
     )
     second = run_notification_cycle(
         database_url=database_url,
         notifier=FakeNotifier(),
         batch_size=1,
-        send_mode="combined",
         destination="feishu",
     )
 
@@ -102,28 +92,27 @@ def test_run_notification_cycle_records_failed_combined_batch_and_retries_next_t
     assert [attempt.success for attempt in attempts] == [False, True]
 
 
-def test_run_notification_cycle_records_per_paper_results_independently(tmp_path):
+def test_run_notification_cycle_uses_batch_size_limit(tmp_path):
     database_url = f"sqlite:///{tmp_path/'papers.db'}"
     db = Database(database_url)
     db.create_schema()
     db.upsert_paper(_build_paper("1111.1111", "First Paper"))
     db.upsert_paper(_build_paper("2222.2222", "Second Paper"))
-    notifier = FakeNotifier(fail_titles={"Second Paper"})
+    notifier = FakeNotifier()
 
     summary = run_notification_cycle(
         database_url=database_url,
         notifier=notifier,
-        batch_size=2,
-        send_mode="per_paper",
+        batch_size=1,
         destination="feishu",
     )
 
     attempts = db.list_notifications(destination="feishu")
     pending = db.list_unnotified_papers(destination="feishu", limit=10)
 
-    assert summary.attempted == 2
+    assert summary.attempted == 1
     assert summary.succeeded == 1
-    assert summary.failed == 1
-    assert notifier.sent_papers == ["First Paper", "Second Paper"]
-    assert [attempt.success for attempt in attempts] == [True, False]
+    assert summary.failed == 0
+    assert notifier.sent_batches == [["First Paper"]]
+    assert [attempt.success for attempt in attempts] == [True]
     assert [paper.title for paper in pending] == ["Second Paper"]

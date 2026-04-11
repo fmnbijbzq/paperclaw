@@ -21,13 +21,12 @@ def run_notify_once_from_config() -> int:
     notifier = FeishuBotNotifier(
         settings.feishu_bot_webhook,
         secret=settings.feishu_bot_secret,
-        max_items=settings.notify_batch_size,
+        max_items=settings.max_notify_items,
     )
     summary = run_notification_cycle(
         database_url=settings.database_url,
         notifier=notifier,
-        batch_size=settings.notify_batch_size,
-        send_mode=settings.notify_send_mode,
+        batch_size=settings.max_notify_items,
         destination="feishu",
     )
     LOGGER.info(

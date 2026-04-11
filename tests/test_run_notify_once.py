@@ -26,14 +26,12 @@ def test_run_notify_once_from_config_builds_notifier(monkeypatch):
         feishu_bot_webhook = "https://example.invalid/hook"
         feishu_bot_secret = "test-secret"
         log_level = "INFO"
-        notify_batch_size = 3
-        notify_send_mode = "per_paper"
+        max_notify_items = 3
 
-    def fake_run_notification_cycle(*, database_url, notifier, batch_size, send_mode, destination):
+    def fake_run_notification_cycle(*, database_url, notifier, batch_size, destination):
         captured["database_url"] = database_url
         captured["notifier"] = notifier
         captured["batch_size"] = batch_size
-        captured["send_mode"] = send_mode
         captured["destination"] = destination
         class Summary:
             attempted = 0
@@ -53,5 +51,4 @@ def test_run_notify_once_from_config_builds_notifier(monkeypatch):
     assert captured["notifier"] is not None
     assert captured["notifier"].secret == "test-secret"
     assert captured["batch_size"] == 3
-    assert captured["send_mode"] == "per_paper"
     assert captured["destination"] == "feishu"

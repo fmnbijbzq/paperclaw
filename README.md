@@ -16,9 +16,8 @@ conda run -n paperclaw python -m pip install -e .[dev]
 2. Set `DATABASE_URL`
 3. Set `FEISHU_BOT_WEBHOOK` if you want Feishu notifications
 4. Set `FEISHU_BOT_SECRET` as well if your Feishu bot has signature verification enabled
-5. Set `NOTIFY_BATCH_SIZE` to control how many pending papers are processed per send cycle
-6. Set `NOTIFY_SEND_MODE` to `combined` or `per_paper`
-7. Adjust `LOG_LEVEL`, `TIMEZONE`, `LOG_FILE`, and `LOG_INCLUDE_LOCATION` as needed
+5. Set `MAX_NOTIFY_ITEMS` to control how many pending papers are processed and sent in each notification cycle
+6. Adjust `LOG_LEVEL`, `TIMEZONE`, `LOG_FILE`, and `LOG_INCLUDE_LOCATION` as needed
 
 Edit `config/sources.yaml` to enable or tune sources such as:
 
@@ -42,12 +41,11 @@ To run one notification cycle manually:
 conda run -n paperclaw python run_notify_once.py
 ```
 
-`run_notify_once.py` scans papers that have not yet been successfully delivered to Feishu, sends up to `NOTIFY_BATCH_SIZE` papers, and writes one record per paper attempt into the `notifications` table. Successful attempts are marked with `success=true`; failed attempts are kept for retry in the next cycle.
+`run_notify_once.py` scans papers that have not yet been successfully delivered to Feishu, sends up to `MAX_NOTIFY_ITEMS` papers in one combined Feishu message, and writes one record per paper attempt into the `notifications` table. Successful attempts are marked with `success=true`; failed attempts are kept for retry in the next cycle.
 
 ## Notification Behavior
 
-- `combined` mode: one Feishu message contains the current batch of papers
-- `per_paper` mode: one Feishu message per paper, still limited by `NOTIFY_BATCH_SIZE`
+- Each cycle sends one combined Feishu message containing up to `MAX_NOTIFY_ITEMS` papers
 - Each send attempt is persisted in `notifications`
 - A paper is considered pending until it has at least one successful notification record for destination `feishu`
 - Failed attempts remain retryable in the next sender cycle
