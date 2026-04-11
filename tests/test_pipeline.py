@@ -66,3 +66,14 @@ def test_run_pipeline_does_not_use_global_counts_for_insert_detection(tmp_path, 
     )
 
     assert summary.total_new == 1
+
+
+def test_run_pipeline_does_not_send_notifications(tmp_path):
+    summary = run_pipeline(
+        database_url=f"sqlite:///{tmp_path/'papers.db'}",
+        sources=[FakeSource()],
+        notifier=None,
+    )
+
+    assert summary.total_new == 1
+    assert summary.total_notified == 0

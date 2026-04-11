@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import Any
+import logging
 
 from app.normalizer import normalize_paper
 from app.schemas import PaperRecord
 from app.storage import Database
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass
@@ -18,29 +22,53 @@ class PipelineSummary:
 
 
 def run_pipeline(database_url: str, sources: list, notifier=None) -> PipelineSummary:
+    """运行完整的爬虫管道：抓取 -> 标准化 -> 去重入库 -> 通知。"""
+    LOGGER.info(f"正在连接到数据库：{database_url}")
     db = Database(database_url)
     db.create_schema()
+    LOGGER.info("数据库 schema 已创建/验证")
+
     summary = PipelineSummary()
+
+    # 统计启用的数据源数量
+    LOGGER.info(f"开始处理 {len(sources)} 个数据源...")
 
     for source in sources:
         source_name = getattr(source, "name", source.__class__.__name__.lower())
+        LOGGER.info(f"「数据源 [{source_name}]」开始处理...")
+
         crawl_run = db.start_crawl_run(source_name)
         fetched_count = 0
         new_count = 0
 
         try:
+            LOGGER.info(f"  正在从 {source_name} 抓取论文...")
             fetched_records = source.fetch()
             fetched_count = len(fetched_records)
             summary.total_fetched += fetched_count
+            LOGGER.info(f"  成功抓取 {fetched_count} 条记录")
 
-            for record in fetched_records:
+            if fetched_count == 0:
+                LOGGER.warning(f"  警告：{source_name} 返回 0 条记录，可能是配置问题或来源无新论文")
+
+            # 标准化并入库
+            LOGGER.info(f"  正在处理 {fetched_count} 条记录的标准化和入库...")
+            for i, record in enumerate(fetched_records, 1):
                 normalized = normalize_paper(record)
                 result = db.upsert_paper_with_status(normalized)
+                LOGGER.info(
+                    "  [%s/%s] %s -> %s",
+                    i,
+                    fetched_count,
+                    normalized.title,
+                    "新增入库" if result.created else "已存在，跳过新增",
+                )
                 if result.created:
                     summary.total_new += 1
                     new_count += 1
                     summary.new_papers.append(normalized)
 
+            # 完成当前数据源的抓取任务
             db.finish_crawl_run(
                 crawl_run.run_id,
                 status="success",
@@ -52,7 +80,10 @@ def run_pipeline(database_url: str, sources: list, notifier=None) -> PipelineSum
                 "fetched": fetched_count,
                 "new": new_count,
             }
+            LOGGER.info(f"  ✓ {source_name} 处理完成：抓 _{fetched_count} 条，新增 {new_count} 条")
+
         except Exception as exc:
+            LOGGER.exception(f"  ✗ {source_name} 处理失败！")
             db.finish_crawl_run(
                 crawl_run.run_id,
                 status="failed",
@@ -68,11 +99,14 @@ def run_pipeline(database_url: str, sources: list, notifier=None) -> PipelineSum
             }
             raise
 
-    if notifier is not None and summary.new_papers:
-        if hasattr(notifier, "notify"):
-            notifier.notify(summary)
-        elif callable(notifier):
-            notifier(summary)
-        summary.total_notified = len(summary.new_papers)
+    # 总结抓取结果
+    LOGGER.info(f"所有数据源处理完成：总计获取 {summary.total_fetched} 条，新增 {summary.total_new} 篇论文")
+
+    if summary.new_papers:
+        LOGGER.info("抓取流程结束，本轮新增待发送论文 %s 篇", len(summary.new_papers))
+        for paper in summary.new_papers:
+            LOGGER.info("待发送论文：%s", paper.title)
+    else:
+        LOGGER.info("抓取流程结束，本轮没有新增待发送论文")
 
     return summary

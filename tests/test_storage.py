@@ -63,12 +63,33 @@ def test_list_unnotified_papers_excludes_notified_records(tmp_path):
     first = db.upsert_paper(_build_paper("1111.1111", "First Paper"))
     second = db.upsert_paper(_build_paper("2222.2222", "Second Paper"))
 
-    pending_before = db.list_unnotified_papers(limit=10)
-    db.record_notification(destination="feishu", papers=[first])
-    pending_after = db.list_unnotified_papers(limit=10)
+    pending_before = db.list_unnotified_papers(destination="feishu", limit=10)
+    db.record_notification_attempt(destination="feishu", paper=first, success=True)
+    pending_after = db.list_unnotified_papers(destination="feishu", limit=10)
 
     assert [paper.paper_id for paper in pending_before] == [first.paper_id, second.paper_id]
     assert [paper.paper_id for paper in pending_after] == [second.paper_id]
+
+
+def test_failed_notification_attempt_keeps_paper_pending(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    paper = db.upsert_paper(_build_paper("1111.1111", "First Paper"))
+
+    db.record_notification_attempt(
+        destination="feishu",
+        paper=paper,
+        success=False,
+        error_message="timeout",
+    )
+
+    pending = db.list_unnotified_papers(destination="feishu", limit=10)
+    attempts = db.list_notifications(destination="feishu")
+
+    assert [item.paper_id for item in pending] == [paper.paper_id]
+    assert len(attempts) == 1
+    assert attempts[0].success is False
+    assert attempts[0].error_message == "timeout"
 
 
 def test_crawl_run_lifecycle_persists_counts(tmp_path):
@@ -81,3 +102,16 @@ def test_crawl_run_lifecycle_persists_counts(tmp_path):
     assert finished.status == "success"
     assert finished.fetched_count == 3
     assert finished.new_count == 2
+
+
+def test_database_creates_missing_parent_directory_for_relative_sqlite_url(tmp_path, monkeypatch):
+    working_dir = tmp_path / "workspace"
+    working_dir.mkdir()
+    monkeypatch.chdir(working_dir)
+
+    db = Database("sqlite:///data/papers.db")
+
+    db.create_schema()
+
+    assert (working_dir / "data").is_dir()
+    assert (working_dir / "data" / "papers.db").exists()

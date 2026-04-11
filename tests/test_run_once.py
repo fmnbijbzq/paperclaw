@@ -23,15 +23,21 @@ def test_run_pipeline_from_config_builds_enabled_sources_and_notifier(monkeypatc
 
     class DummySettings:
         database_url = "sqlite:///tmp/papers.db"
-        feishu_bot_webhook = "https://example.invalid/hook"
         log_level = "INFO"
+        timezone = "Asia/Shanghai"
         max_notify_items = 5
 
     def fake_run_pipeline(*, database_url, sources, notifier):
         captured["database_url"] = database_url
         captured["sources"] = sources
         captured["notifier"] = notifier
-        return 0
+        class Summary:
+            total_fetched = 0
+            total_new = 0
+            total_notified = 0
+            per_source = {}
+
+        return Summary()
 
     monkeypatch.setattr("run_once.AppSettings", lambda: DummySettings())
     monkeypatch.setattr(
@@ -49,8 +55,12 @@ def test_run_pipeline_from_config_builds_enabled_sources_and_notifier(monkeypatc
     assert result == 0
     assert captured["database_url"] == "sqlite:///tmp/papers.db"
     assert [source.name for source in captured["sources"]] == ["arxiv", "openreview"]
-    assert captured["notifier"] is not None
+    assert captured["notifier"] is None
 
 
 def test_cron_example_file_exists():
     assert Path("scripts/setup_cron.example").exists()
+
+
+def test_feishu_smoke_test_script_exists():
+    assert Path("scripts/send_test_feishu_message.py").exists()

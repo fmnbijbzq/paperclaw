@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
+from pathlib import Path
 
 from sqlalchemy import create_engine, func, inspect, select
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.models import Base, CrawlRun, Notification, Paper, PaperVersion
@@ -19,6 +21,7 @@ class UpsertPaperResult:
 
 class Database:
     def __init__(self, database_url: str):
+        self._ensure_sqlite_parent_dir(database_url)
         self.engine = create_engine(database_url, future=True)
         self._session_factory = sessionmaker(self.engine, expire_on_commit=False)
 
@@ -84,24 +87,67 @@ class Database:
             session.commit()
             return UpsertPaperResult(paper=paper, created=created)
 
-    def record_notification(self, *, destination: str, papers: Iterable[Paper]) -> list[Notification]:
+    def record_notification_attempt(
+        self,
+        *,
+        destination: str,
+        paper: Paper,
+        success: bool,
+        error_message: str | None = None,
+    ) -> Notification:
+        with self._session() as session:
+            notification = Notification(
+                destination=destination,
+                paper_id=paper.paper_id,
+                success=success,
+                error_message=error_message,
+            )
+            session.add(notification)
+            session.commit()
+            return notification
+
+    def record_notifications(
+        self,
+        *,
+        destination: str,
+        papers: Iterable[Paper],
+        success: bool,
+        error_message: str | None = None,
+    ) -> list[Notification]:
         notifications: list[Notification] = []
         with self._session() as session:
             for paper in papers:
-                notification = Notification(destination=destination, paper_id=paper.paper_id)
+                notification = Notification(
+                    destination=destination,
+                    paper_id=paper.paper_id,
+                    success=success,
+                    error_message=error_message,
+                )
                 session.add(notification)
                 notifications.append(notification)
 
             session.commit()
             return notifications
 
-    def list_unnotified_papers(self, *, limit: int) -> list[Paper]:
-        notified = select(Notification.paper_id)
+    def list_unnotified_papers(self, *, destination: str, limit: int) -> list[Paper]:
+        notified = select(Notification.paper_id).where(
+            Notification.destination == destination,
+            Notification.success.is_(True),
+        )
         stmt = (
             select(Paper)
             .where(~Paper.paper_id.in_(notified))
             .order_by(Paper.paper_id.asc())
             .limit(limit)
+        )
+        with self._session() as session:
+            return list(session.scalars(stmt))
+
+    def list_notifications(self, *, destination: str) -> list[Notification]:
+        stmt = (
+            select(Notification)
+            .where(Notification.destination == destination)
+            .order_by(Notification.notification_id.asc())
         )
         with self._session() as session:
             return list(session.scalars(stmt))
@@ -112,6 +158,18 @@ class Database:
 
     def _session(self) -> Session:
         return self._session_factory()
+
+    @staticmethod
+    def _ensure_sqlite_parent_dir(database_url: str) -> None:
+        url = make_url(database_url)
+        if url.drivername != "sqlite":
+            return
+
+        database = url.database
+        if not database or database == ":memory:":
+            return
+
+        Path(database).parent.mkdir(parents=True, exist_ok=True)
 
     @staticmethod
     def _apply_record(paper: Paper, record: PaperRecord) -> None:

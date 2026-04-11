@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.utils.time import utc_now
@@ -85,6 +85,8 @@ class Notification(Base):
     notification_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     destination: Mapped[str] = mapped_column(String(255), nullable=False)
     paper_id: Mapped[int] = mapped_column(ForeignKey("papers.paper_id", ondelete="CASCADE"), nullable=False)
+    success: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     paper: Mapped[Paper] = relationship(back_populates="notifications")

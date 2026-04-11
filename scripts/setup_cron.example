@@ -1,1 +1,2 @@
-0 8 * * * cd /root/workspace/paperclaw && /usr/bin/python3 run_once.py >> logs/cron.log 2>&1
+0 8 * * * cd /root/workspace/paperclaw && /root/miniconda3/bin/conda run -n paperclaw python run_once.py >> logs/fetch.log 2>&1
+*/10 * * * * cd /root/workspace/paperclaw && /root/miniconda3/bin/conda run -n paperclaw python run_notify_once.py >> logs/notify.log 2>&1
