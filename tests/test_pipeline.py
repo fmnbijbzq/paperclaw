@@ -25,6 +25,13 @@ class FakeSource:
         ]
 
 
+class FailingSource:
+    name = "broken"
+
+    def fetch(self):
+        raise RuntimeError("boom")
+
+
 def test_run_pipeline_inserts_and_returns_summary(tmp_path):
     summary = run_pipeline(
         database_url=f"sqlite:///{tmp_path/'papers.db'}",
@@ -77,3 +84,18 @@ def test_run_pipeline_does_not_send_notifications(tmp_path):
 
     assert summary.total_new == 1
     assert summary.total_notified == 0
+
+
+def test_run_pipeline_continues_after_one_source_fails(tmp_path):
+    summary = run_pipeline(
+        database_url=f"sqlite:///{tmp_path/'papers.db'}",
+        sources=[FailingSource(), FakeSource()],
+        notifier=None,
+    )
+
+    assert summary.total_fetched == 1
+    assert summary.total_new == 1
+    assert summary.per_source["broken"]["status"] == "failed"
+    assert summary.per_source["arxiv"]["status"] == "success"
+    assert summary.failed_sources == ["broken"]
+    assert summary.has_failures is True

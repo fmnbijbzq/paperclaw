@@ -58,6 +58,28 @@ def test_run_pipeline_from_config_builds_enabled_sources_and_notifier(monkeypatc
     assert captured["notifier"] is None
 
 
+def test_run_pipeline_from_config_returns_non_zero_when_any_source_fails(monkeypatch):
+    class DummySettings:
+        database_url = "sqlite:///tmp/papers.db"
+        log_level = "INFO"
+        timezone = "Asia/Shanghai"
+        max_notify_items = 5
+
+    class Summary:
+        total_fetched = 0
+        total_new = 0
+        total_notified = 0
+        per_source = {"broken": {"status": "failed", "fetched": 0, "new": 0, "error": "boom"}}
+        has_failures = True
+
+    monkeypatch.setattr("run_once.AppSettings", lambda: DummySettings())
+    monkeypatch.setattr("run_once.load_source_config", lambda path: {})
+    monkeypatch.setattr("run_once.configure_logging", lambda settings: None)
+    monkeypatch.setattr("run_once.run_pipeline", lambda **kwargs: Summary())
+
+    assert run_pipeline_from_config() == 1
+
+
 def test_cron_example_file_exists():
     assert Path("scripts/setup_cron.example").exists()
 

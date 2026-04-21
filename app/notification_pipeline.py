@@ -28,9 +28,11 @@ def run_notification_cycle(
     db = Database(database_url)
     db.create_schema()
     summary = NotificationCycleSummary()
-    papers = db.list_unnotified_papers(destination=destination, limit=batch_size)
+    selected_papers = db.list_unnotified_papers(destination=destination, limit=batch_size)
+    send_limit = getattr(notifier, "max_items", None)
+    papers = selected_papers if send_limit is None else selected_papers[:send_limit]
 
-    LOGGER.info("本轮待发送论文数：%s，计划处理：%s", len(papers), min(len(papers), batch_size))
+    LOGGER.info("本轮待发送论文数：%s，计划处理：%s", len(selected_papers), len(papers))
     if not papers:
         LOGGER.info("没有待发送论文，结束本轮发送")
         return summary

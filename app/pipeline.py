@@ -19,6 +19,11 @@ class PipelineSummary:
     total_notified: int = 0
     new_papers: list[PaperRecord] = field(default_factory=list)
     per_source: dict[str, dict[str, Any]] = field(default_factory=dict)
+    failed_sources: list[str] = field(default_factory=list)
+
+    @property
+    def has_failures(self) -> bool:
+        return bool(self.failed_sources)
 
 
 def run_pipeline(database_url: str, sources: list, notifier=None) -> PipelineSummary:
@@ -97,10 +102,13 @@ def run_pipeline(database_url: str, sources: list, notifier=None) -> PipelineSum
                 "new": new_count,
                 "error": str(exc),
             }
-            raise
+            summary.failed_sources.append(source_name)
+            continue
 
     # 总结抓取结果
     LOGGER.info(f"所有数据源处理完成：总计获取 {summary.total_fetched} 条，新增 {summary.total_new} 篇论文")
+    if summary.failed_sources:
+        LOGGER.warning("以下数据源处理失败：%s", summary.failed_sources)
 
     if summary.new_papers:
         LOGGER.info("抓取流程结束，本轮新增待发送论文 %s 篇", len(summary.new_papers))

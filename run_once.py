@@ -95,7 +95,7 @@ def run_pipeline_from_config() -> int:
         if stats.get('error'):
             LOGGER.error(f"  错误信息：{stats.get('error')}")
 
-    return 0
+    return 1 if getattr(summary, "has_failures", False) else 0
 
 
 def main() -> int:

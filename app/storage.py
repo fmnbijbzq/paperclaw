@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import create_engine, func, inspect, select
+from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -27,6 +27,7 @@ class Database:
 
     def create_schema(self) -> None:
         Base.metadata.create_all(self.engine)
+        self._migrate_sqlite_schema()
 
     def table_exists(self, name: str) -> bool:
         return inspect(self.engine).has_table(name)
@@ -158,6 +159,28 @@ class Database:
 
     def _session(self) -> Session:
         return self._session_factory()
+
+    def _migrate_sqlite_schema(self) -> None:
+        if self.engine.dialect.name != "sqlite":
+            return
+
+        inspector = inspect(self.engine)
+        if not inspector.has_table("notifications"):
+            return
+
+        columns = {column["name"] for column in inspector.get_columns("notifications")}
+        statements: list[str] = []
+        if "success" not in columns:
+            statements.append("ALTER TABLE notifications ADD COLUMN success BOOLEAN NOT NULL DEFAULT 1")
+        if "error_message" not in columns:
+            statements.append("ALTER TABLE notifications ADD COLUMN error_message TEXT")
+
+        if not statements:
+            return
+
+        with self.engine.begin() as connection:
+            for statement in statements:
+                connection.execute(text(statement))
 
     @staticmethod
     def _ensure_sqlite_parent_dir(database_url: str) -> None:

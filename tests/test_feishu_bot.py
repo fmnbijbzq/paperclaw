@@ -102,3 +102,20 @@ def test_feishu_notifier_notify_builds_and_sends_payload():
     notifier.notify(Summary())
 
     assert "Vision Paper" in captured["body"]
+
+
+def test_feishu_send_raises_when_business_status_is_non_zero():
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"StatusCode": 19001, "StatusMessage": "invalid token"})
+
+    notifier = FeishuBotNotifier(
+        "https://example.invalid/hook",
+        transport=httpx.MockTransport(handler),
+    )
+
+    try:
+        notifier.send({"msg_type": "text", "content": {"text": "hello"}})
+    except RuntimeError as exc:
+        assert "19001" in str(exc)
+    else:
+        raise AssertionError("expected business failure to raise RuntimeError")

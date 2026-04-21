@@ -1,4 +1,5 @@
 from pathlib import Path
+import sqlite3
 import sys
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -115,3 +116,35 @@ def test_database_creates_missing_parent_directory_for_relative_sqlite_url(tmp_p
 
     assert (working_dir / "data").is_dir()
     assert (working_dir / "data" / "papers.db").exists()
+
+
+def test_create_schema_migrates_legacy_notifications_table(tmp_path):
+    db_path = tmp_path / "papers.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE notifications (
+                notification_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                destination VARCHAR(255) NOT NULL,
+                paper_id INTEGER NOT NULL,
+                sent_at DATETIME NOT NULL
+            )
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    db = Database(f"sqlite:///{db_path}")
+
+    db.create_schema()
+
+    migrated = sqlite3.connect(db_path)
+    try:
+        columns = {row[1] for row in migrated.execute("PRAGMA table_info(notifications)")}
+    finally:
+        migrated.close()
+
+    assert "success" in columns
+    assert "error_message" in columns

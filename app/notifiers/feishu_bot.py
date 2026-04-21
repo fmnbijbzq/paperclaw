@@ -62,7 +62,12 @@ class FeishuBotNotifier:
         with httpx.Client(timeout=self.timeout, transport=self._transport) as client:
             response = client.post(self.webhook_url, json=request_payload)
             response.raise_for_status()
-            return response.json()
+            result = response.json()
+            status_code = result.get("StatusCode", 0)
+            if status_code != 0:
+                status_message = result.get("StatusMessage", "unknown error")
+                raise RuntimeError(f"Feishu webhook failed with StatusCode={status_code}: {status_message}")
+            return result
 
     def send_combined(self, papers: Sequence[object]) -> dict:
         payload = self.build_payload(
