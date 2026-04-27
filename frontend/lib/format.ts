@@ -1,0 +1,64 @@
+import type { EditorialPlatform, PaperSource } from "./types";
+
+const compactNumberFormatter = new Intl.NumberFormat("en", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+const shortDateFormatter = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+});
+
+const fullDateFormatter = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+});
+
+const dateTimeFormatter = new Intl.DateTimeFormat("en", {
+  month: "short",
+  day: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+
+export function formatCompactNumber(value: number): string {
+  return compactNumberFormatter.format(value);
+}
+
+export function formatDate(value: string): string {
+  return shortDateFormatter.format(new Date(value));
+}
+
+export function formatFullDate(value: string): string {
+  return fullDateFormatter.format(new Date(value));
+}
+
+export function formatDateTime(value: string): string {
+  return `${dateTimeFormatter.format(new Date(value))} UTC`;
+}
+
+export function formatSource(source: PaperSource): string {
+  const labels: Record<PaperSource, string> = {
+    arxiv: "arXiv",
+    openreview: "OpenReview",
+    cvf: "CVF",
+  };
+
+  return labels[source];
+}
+
+export function formatPlatform(platform: EditorialPlatform): string {
+  const labels: Record<EditorialPlatform, string> = {
+    bilibili: "Bilibili",
+    xiaohongshu: "Xiaohongshu",
+    douyin: "Douyin",
+  };
+
+  return labels[platform];
+}
+
+export function formatPercent(value: number): string {
+  return `${Math.round(value * 100)}%`;
+}

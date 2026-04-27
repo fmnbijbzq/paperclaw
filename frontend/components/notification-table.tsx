@@ -1,0 +1,67 @@
+import Link from "next/link";
+
+import { formatDateTime, formatSource } from "@/lib/format";
+import type { NotificationItem, PaperSource } from "@/lib/types";
+import { StatusBadge } from "@/components/status-badge";
+
+interface NotificationTableRow {
+  notification: NotificationItem;
+  paperTitle: string;
+  source: PaperSource;
+}
+
+interface NotificationTableProps {
+  rows: NotificationTableRow[];
+}
+
+export function NotificationTable({ rows }: NotificationTableProps) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="min-w-full border-separate border-spacing-y-3">
+        <caption className="sr-only">Notification delivery attempts for recent papers</caption>
+        <thead>
+          <tr className="text-left text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text-dim)]">
+            <th scope="col" className="px-4 py-2">
+              Paper
+            </th>
+            <th scope="col" className="px-4 py-2">
+              Source
+            </th>
+            <th scope="col" className="px-4 py-2">
+              Destination
+            </th>
+            <th scope="col" className="px-4 py-2">
+              Status
+            </th>
+            <th scope="col" className="px-4 py-2">
+              Attempted
+            </th>
+            <th scope="col" className="px-4 py-2">
+              Error
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(({ notification, paperTitle, source }) => (
+            <tr key={notification.notificationId} className="panel-card rounded-[1.2rem] align-top">
+              <td className="rounded-l-[1.2rem] px-4 py-4">
+                <Link href={`/papers/${notification.paperId}`} className="font-semibold text-white">
+                  {paperTitle}
+                </Link>
+              </td>
+              <td className="px-4 py-4 text-sm subtle-copy">{formatSource(source)}</td>
+              <td className="px-4 py-4 text-sm text-white">{notification.destination}</td>
+              <td className="px-4 py-4">
+                <StatusBadge label={notification.success ? "Delivered" : "Failed"} tone={notification.success ? "success" : "danger"} />
+              </td>
+              <td className="px-4 py-4 text-sm subtle-copy">{formatDateTime(notification.sentAt)}</td>
+              <td className="rounded-r-[1.2rem] px-4 py-4 text-sm subtle-copy">
+                {notification.errorMessage ?? "No error recorded"}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
