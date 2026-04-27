@@ -58,6 +58,8 @@ Generate platform drafts (bilibili/xiaohongshu/douyin):
 python scripts/run_content_pipeline.py --limit 3
 ```
 
+`run_content_pipeline.py` reads `DATABASE_URL` from the active `.env` (current working directory first, then repo root), and by default writes drafts under the current working directory. Use `--base-dir /path/to/runtime-root` if you want to target a specific runtime root explicitly.
+
 This writes markdown drafts under:
 
 ```
@@ -69,6 +71,16 @@ Export reviewed/selected drafts to publish package folder:
 ```
 python scripts/export_for_publish.py --date YYYY-MM-DD
 ```
+
+Export only one platform's draft files when needed:
+
+```
+python scripts/export_for_publish.py --date YYYY-MM-DD --platform bilibili
+```
+
+This filters files like `bilibili-*.md` from that date's editorial directory.
+
+Use `--base-dir /path/to/runtime-root` if your `outputs/` directory lives outside the repository checkout.
 
 This exports to:
 

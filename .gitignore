@@ -6,5 +6,6 @@ tests/__pycache__/
 .pytest_cache/
 .env
 data/
+outputs/
 .vscode/
 .codex
