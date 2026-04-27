@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings.sources import DotEnvSettingsSource
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -20,10 +21,30 @@ class AppSettings(BaseSettings):
     timezone: str = "Asia/Shanghai"
     max_notify_items: int = 10
     model_config = SettingsConfigDict(
-        env_file=DOTENV_PATH,
+        env_file=str(DOTENV_PATH),
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls,
+        init_settings,
+        env_settings,
+        dotenv_settings,
+        file_secret_settings,
+    ):
+        runtime_dotenv = Path.cwd() / ".env"
+        dotenv_files = [str(DOTENV_PATH)]
+        if runtime_dotenv != DOTENV_PATH:
+            dotenv_files.append(str(runtime_dotenv))
+        runtime_aware_dotenv = DotEnvSettingsSource(
+            settings_cls,
+            env_file=tuple(dotenv_files),
+            env_file_encoding=settings_cls.model_config.get("env_file_encoding"),
+        )
+        return init_settings, env_settings, runtime_aware_dotenv, file_secret_settings
 
 
 def load_source_config(path: Path) -> dict:

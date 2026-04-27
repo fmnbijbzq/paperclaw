@@ -34,7 +34,28 @@ def test_app_settings_uses_absolute_project_root_dotenv_path():
     expected = Path(__file__).resolve().parents[1] / ".env"
     assert DOTENV_PATH == expected
     assert DOTENV_PATH.is_absolute()
-    assert AppSettings.model_config["env_file"] == DOTENV_PATH
+    assert AppSettings.model_config["env_file"] == str(DOTENV_PATH)
+
+
+def test_app_settings_prefers_runtime_dotenv_over_repo_dotenv(tmp_path: Path, monkeypatch):
+    repo_env = DOTENV_PATH
+    original_repo = repo_env.read_text(encoding="utf-8") if repo_env.exists() else None
+    runtime_root = tmp_path / "runtime"
+    runtime_root.mkdir()
+    runtime_env = runtime_root / ".env"
+    runtime_env.write_text("DATABASE_URL=sqlite:///runtime.db\n", encoding="utf-8")
+
+    try:
+        repo_env.write_text("DATABASE_URL=sqlite:///repo.db\n", encoding="utf-8")
+        monkeypatch.chdir(runtime_root)
+        settings = AppSettings()
+        assert settings.database_url == "sqlite:///runtime.db"
+    finally:
+        if original_repo is None:
+            if repo_env.exists():
+                repo_env.unlink()
+        else:
+            repo_env.write_text(original_repo, encoding="utf-8")
 
 
 def test_load_source_config_reads_arxiv_categories(tmp_path: Path):
