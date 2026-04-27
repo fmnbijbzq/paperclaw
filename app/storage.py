@@ -117,6 +117,17 @@ class Database:
     def list_unnotified_papers_with_limit(self, *, destination: str, limit: int) -> list[Paper]:
         return self.list_unnotified_papers(destination=destination, limit=limit)
 
+    def list_papers_with_insights(self, *, limit: int) -> list[tuple[Paper, PaperInsight]]:
+        stmt = (
+            select(Paper, PaperInsight)
+            .join(PaperInsight, Paper.paper_id == PaperInsight.paper_id)
+            .order_by(Paper.paper_id.desc())
+            .limit(limit)
+        )
+        with self._session() as session:
+            rows = session.execute(stmt).all()
+            return [(paper, insight) for paper, insight in rows]
+
     def record_notification_attempt(
         self,
         *,

@@ -251,3 +251,66 @@ def test_upsert_paper_insight_creates_and_updates_single_row(tmp_path):
     assert stored.summary_short == "short2"
     assert stored.novelty_points == ["n2"]
     assert stored.confidence_score == 0.9
+
+
+def test_list_papers_with_insights_returns_latest_papers_first(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    paper1 = db.upsert_paper(_build_paper("1000.0001", "Older Paper"))
+    paper2 = db.upsert_paper(_build_paper("1000.0002", "Newer Paper"))
+
+    db.upsert_paper_insight(
+        paper_id=paper1.paper_id,
+        insight=PaperInsightRecord(
+            summary_short="older short",
+            summary_long="older long",
+            novelty_points=["o1"],
+            limitations=[],
+            applications=[],
+            confidence_score=0.7,
+        ),
+    )
+    db.upsert_paper_insight(
+        paper_id=paper2.paper_id,
+        insight=PaperInsightRecord(
+            summary_short="newer short",
+            summary_long="newer long",
+            novelty_points=["n1"],
+            limitations=[],
+            applications=[],
+            confidence_score=0.8,
+        ),
+    )
+
+    rows = db.list_papers_with_insights(limit=10)
+
+    assert [paper.title for paper, _ in rows] == ["Newer Paper", "Older Paper"]
+    assert rows[0][1].summary_short == "newer short"
+    assert rows[1][1].summary_short == "older short"
+
+
+def test_list_papers_with_insights_skips_papers_without_insights(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    paper = db.upsert_paper(_build_paper("1000.0003", "No Insight Paper"))
+    db.upsert_paper(_build_paper("1000.0004", "Another No Insight Paper"))
+    insight_paper = db.upsert_paper(_build_paper("1000.0005", "Insightful Paper"))
+
+    db.upsert_paper_insight(
+        paper_id=insight_paper.paper_id,
+        insight=PaperInsightRecord(
+            summary_short="insight short",
+            summary_long="insight long",
+            novelty_points=["i1"],
+            limitations=[],
+            applications=[],
+            confidence_score=0.85,
+        ),
+    )
+
+    rows = db.list_papers_with_insights(limit=10)
+
+    assert [item.title for item, _ in rows] == ["Insightful Paper"]
+    assert all(item.paper_id != paper.paper_id for item, _ in rows)
