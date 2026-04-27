@@ -1,0 +1,183 @@
+@import "tailwindcss";
+
+:root {
+  --surface-base: #07111f;
+  --surface-elevated: #0d1728;
+  --surface-panel: rgba(12, 22, 38, 0.92);
+  --surface-panel-strong: rgba(18, 31, 54, 0.96);
+  --surface-panel-soft: rgba(18, 31, 54, 0.72);
+  --surface-amber: rgba(245, 158, 11, 0.12);
+  --text-primary: #edf4ff;
+  --text-muted: #9fb1c9;
+  --text-dim: #7086a6;
+  --accent-blue: #60a5fa;
+  --accent-blue-strong: #3b82f6;
+  --accent-amber: #f59e0b;
+  --accent-green: #34d399;
+  --accent-rose: #fb7185;
+  --border-subtle: rgba(115, 147, 197, 0.22);
+  --border-strong: rgba(147, 197, 253, 0.42);
+  --shadow-panel: 0 24px 56px rgba(2, 6, 23, 0.45);
+  --shadow-glow: 0 0 0 1px rgba(96, 165, 250, 0.22), 0 24px 56px rgba(2, 6, 23, 0.56);
+}
+
+@theme inline {
+  --font-sans: var(--font-body);
+  --font-serif: var(--font-display);
+}
+
+html {
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.14), transparent 28rem),
+    radial-gradient(circle at top right, rgba(245, 158, 11, 0.08), transparent 24rem),
+    linear-gradient(180deg, #06101d 0%, #081221 100%);
+  color: var(--text-primary);
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--text-primary);
+  background:
+    linear-gradient(180deg, rgba(7, 17, 31, 0.92), rgba(7, 17, 31, 1)),
+    linear-gradient(90deg, rgba(96, 165, 250, 0.03) 1px, transparent 1px),
+    linear-gradient(rgba(96, 165, 250, 0.03) 1px, transparent 1px);
+  background-size: auto, 80px 80px, 80px 80px;
+  font-family: var(--font-body), sans-serif;
+}
+
+::selection {
+  background: rgba(96, 165, 250, 0.3);
+  color: white;
+}
+
+* {
+  scrollbar-color: rgba(147, 197, 253, 0.32) transparent;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  transition:
+    color 180ms ease,
+    background-color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-amber);
+  outline-offset: 3px;
+}
+
+button,
+[role="button"] {
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  color: var(--text-primary);
+}
+
+.skip-link {
+  position: fixed;
+  left: 1rem;
+  top: 1rem;
+  z-index: 100;
+  transform: translateY(-180%);
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: rgba(7, 17, 31, 0.94);
+  padding: 0.7rem 1rem;
+  color: white;
+  box-shadow: var(--shadow-panel);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.panel-card {
+  border: 1px solid var(--border-subtle);
+  background:
+    linear-gradient(180deg, rgba(18, 31, 54, 0.9), rgba(10, 17, 30, 0.92)),
+    rgba(12, 22, 38, 0.84);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: blur(18px);
+}
+
+.panel-card-interactive:hover {
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-glow);
+}
+
+.hairline-divider {
+  border-color: rgba(115, 147, 197, 0.18);
+}
+
+.eyebrow {
+  color: var(--accent-blue);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.section-title {
+  font-family: var(--font-display), serif;
+  letter-spacing: -0.03em;
+}
+
+.subtle-copy {
+  color: var(--text-muted);
+}
+
+.action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  border-radius: 999px;
+  padding: 0.72rem 1rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.action-button-primary {
+  background: var(--accent-amber);
+  color: #09111e;
+  box-shadow: 0 12px 28px rgba(245, 158, 11, 0.28);
+}
+
+.action-button-secondary {
+  border: 1px solid var(--border-subtle);
+  background: rgba(15, 23, 42, 0.72);
+  color: var(--text-primary);
+}
+
+.metric-value {
+  font-family: var(--font-display), serif;
+  font-size: clamp(2rem, 3vw, 2.75rem);
+  line-height: 0.95;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
