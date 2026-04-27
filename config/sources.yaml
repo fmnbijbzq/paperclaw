@@ -2,3 +2,28 @@ arxiv:
   enabled: true
   categories:
     - cs.CV
+  lookback_days: 2
+  priority: 100
+  rate_limit: 1
+
+openreview:
+  enabled: true
+  venues:
+    - CVPR
+    - ICCV
+    - ECCV
+  lookback_days: 3
+  priority: 90
+  rate_limit: 1
+
+cvf:
+  enabled: false
+  conferences:
+    - CVPR
+    - ICCV
+    - ECCV
+  lookback_days: 7
+  year: 2026
+  max_results: 100
+  priority: 80
+  rate_limit: 1

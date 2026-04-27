@@ -12,6 +12,7 @@ class PaperRecord(BaseModel):
     dedup_key: str | None = None
     title: str
     abstract: str | None = None
+    full_text: str | None = None
     authors: list[str] = Field(default_factory=list)
     paper_url: str
     pdf_url: str | None = None

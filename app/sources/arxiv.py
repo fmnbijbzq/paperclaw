@@ -94,6 +94,7 @@ class ArxivSource(BaseSource):
             source_paper_id=entry_id.rsplit("/", 1)[-1],
             title=title,
             abstract=self._clean_text(entry.findtext("atom:summary", default="", namespaces=ATOM_NS)) or None,
+            full_text=self._fetch_full_text(pdf_url),
             authors=authors,
             paper_url=entry_id,
             pdf_url=pdf_url,

@@ -31,6 +31,7 @@ def test_run_pipeline_from_config_builds_enabled_sources_and_notifier(monkeypatc
         captured["database_url"] = database_url
         captured["sources"] = sources
         captured["notifier"] = notifier
+
         class Summary:
             total_fetched = 0
             total_new = 0
@@ -56,6 +57,53 @@ def test_run_pipeline_from_config_builds_enabled_sources_and_notifier(monkeypatc
     assert captured["database_url"] == "sqlite:///tmp/papers.db"
     assert [source.name for source in captured["sources"]] == ["arxiv", "openreview"]
     assert captured["notifier"] is None
+
+
+def test_run_pipeline_from_config_builds_cvf_source_when_enabled(monkeypatch):
+    captured: dict = {}
+
+    class DummySettings:
+        database_url = "sqlite:///tmp/papers.db"
+        log_level = "INFO"
+        timezone = "Asia/Shanghai"
+        max_notify_items = 5
+
+    def fake_run_pipeline(*, database_url, sources, notifier):
+        captured["sources"] = sources
+
+        class Summary:
+            total_fetched = 0
+            total_new = 0
+            total_notified = 0
+            per_source = {}
+
+        return Summary()
+
+    monkeypatch.setattr("run_once.AppSettings", lambda: DummySettings())
+    monkeypatch.setattr(
+        "run_once.load_source_config",
+        lambda path: {
+            "cvf": {
+                "enabled": True,
+                "conferences": ["CVPR", "ICCV"],
+                "lookback_days": 7,
+                "year": 2026,
+                "max_results": 50,
+            }
+        },
+    )
+    monkeypatch.setattr("run_once.configure_logging", lambda settings: None)
+    monkeypatch.setattr("run_once.run_pipeline", fake_run_pipeline)
+
+    result = run_pipeline_from_config()
+
+    assert result == 0
+    assert [source.name for source in captured["sources"]] == ["cvf"]
+    cvf = captured["sources"][0]
+    assert cvf.conferences == ["CVPR", "ICCV"]
+    assert cvf.lookback_days == 7
+    assert cvf.year == 2026
+    assert cvf.max_results == 50
 
 
 def test_run_pipeline_from_config_returns_non_zero_when_any_source_fails(monkeypatch):

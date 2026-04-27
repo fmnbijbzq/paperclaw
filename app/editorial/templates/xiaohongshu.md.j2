@@ -1,0 +1,14 @@
+# {{ title }}
+
+{{ hook }}
+
+今日速览：
+{% for point in insight.novelty_points[:3] %}
+- {{ point }}
+{% endfor %}
+
+这篇论文值不值得看？
+- 短评：{{ insight.summary_short }}
+- 置信度：{{ '%.2f'|format(insight.confidence_score or 0.0) }}
+
+建议收藏，后续会补实验复现笔记。

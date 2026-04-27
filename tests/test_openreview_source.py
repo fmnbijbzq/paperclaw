@@ -99,3 +99,37 @@ def test_openreview_source_includes_lookback_window_in_query():
     source.fetch()
 
     assert "mintcdate=" in captured_request["url"]
+
+
+def test_openreview_source_fetches_full_text_from_pdf(monkeypatch):
+    source = OpenReviewSource(
+        base_url="https://example.test",
+        venues=["CVPR"],
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                json={
+                    "notes": [
+                        {
+                            "id": "note-1",
+                            "content": {
+                                "title": {"value": "OpenReview Vision Paper"},
+                                "abstract": {"value": "Abstract"},
+                                "authors": {"value": ["Alice", "Bob"]},
+                            },
+                            "details": {"pdf": "/pdf/note-1.pdf"},
+                            "forum": "forum-1",
+                            "venue": "CVPR 2026",
+                        }
+                    ]
+                },
+            )
+        ),
+    )
+
+    monkeypatch.setattr(source, "_fetch_full_text", lambda pdf_url: "OpenReview full text")
+
+    records = source.fetch()
+
+    assert len(records) == 1
+    assert records[0].full_text == "OpenReview full text"

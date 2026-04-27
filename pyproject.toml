@@ -9,6 +9,8 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "pyyaml",
+    "pypdf",
+    "jinja2",
 ]
 
 [project.optional-dependencies]

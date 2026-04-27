@@ -7,6 +7,7 @@ from app.config import AppSettings, load_source_config
 from app.logging import configure_logging
 from app.pipeline import run_pipeline
 from app.sources.arxiv import ArxivSource
+from app.sources.cvf import CVFSource
 from app.sources.openreview import OpenReviewSource
 
 LOGGER = logging.getLogger(__name__)
@@ -51,7 +52,7 @@ def run_pipeline_from_config() -> int:
                 lookback_days=arxiv_lookback,
             )
         )
-        LOGGER.info(f"  arXiv 源初始化完成")
+        LOGGER.info("  arXiv 源初始化完成")
     else:
         LOGGER.info("arXiv 数据源已禁用，跳过")
 
@@ -61,7 +62,7 @@ def run_pipeline_from_config() -> int:
     if openreview_config.get("enabled"):
         LOGGER.info("启用 OpenReview 数据源")
         openreview_lookback = openreview_config.get("lookback_days")
-        LOGGER.info(f"   Venue: {openreview_config.get('venues')}")
+        LOGGER.info(f"  Venue: {openreview_config.get('venues')}")
         LOGGER.info(f"  回溯天数：{openreview_lookback}")
         sources.append(
             OpenReviewSource(
@@ -69,9 +70,26 @@ def run_pipeline_from_config() -> int:
                 lookback_days=openreview_lookback,
             )
         )
-        LOGGER.info(f"  OpenReview 源初始化完成")
+        LOGGER.info("  OpenReview 源初始化完成")
     else:
         LOGGER.info("OpenReview 数据源已禁用，跳过")
+
+    # 初始化 CVF 源
+    cvf_config = source_config.get("cvf", {})
+    LOGGER.info(f"CVF 配置：{cvf_config}")
+    if cvf_config.get("enabled"):
+        LOGGER.info("启用 CVF 数据源")
+        sources.append(
+            CVFSource(
+                conferences=cvf_config.get("conferences"),
+                lookback_days=cvf_config.get("lookback_days"),
+                year=cvf_config.get("year"),
+                max_results=cvf_config.get("max_results", 100),
+            )
+        )
+        LOGGER.info("  CVF 源初始化完成")
+    else:
+        LOGGER.info("CVF 数据源已禁用，跳过")
 
     LOGGER.info(f"初始化完成后，共 {len(sources)} 个数据源：{[s.name for s in sources]}")
 
@@ -86,7 +104,7 @@ def run_pipeline_from_config() -> int:
         notifier=None,
     )
 
-    LOGGER.info(f"爬虫管道执行完成")
+    LOGGER.info("爬虫管道执行完成")
     LOGGER.info(f"统计：获取 {summary.total_fetched} 篇，新增 {summary.total_new} 篇，通知 {summary.total_notified} 篇")
 
     # 输出每个数据源的结果

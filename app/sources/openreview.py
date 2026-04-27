@@ -70,15 +70,17 @@ class OpenReviewSource(BaseSource):
 
         venue = note.get("venue")
         pdf_path = (note.get("details") or {}).get("pdf")
+        pdf_url = self._build_absolute_url(pdf_path)
 
         return PaperRecord(
             source="openreview",
             source_paper_id=note_id,
             title=str(title).strip(),
             abstract=str(abstract).strip() if abstract else None,
+            full_text=self._fetch_full_text(pdf_url),
             authors=[str(author).strip() for author in authors if str(author).strip()],
             paper_url=f"{self.base_url.rstrip('/')}/forum?id={forum}",
-            pdf_url=self._build_absolute_url(pdf_path),
+            pdf_url=pdf_url,
             venue=venue,
             published_at=self._from_millis(note.get("cdate")),
             updated_at_source=self._from_millis(note.get("mdate")),

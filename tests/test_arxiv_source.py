@@ -11,10 +11,12 @@ from app.sources.arxiv import ArxivSource
 
 
 def test_arxiv_source_parses_atom_entry():
-    captured_request: dict[str, str] = {}
+    captured_urls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        captured_request["url"] = str(request.url)
+        captured_urls.append(str(request.url))
+        if request.url.path.endswith(".pdf"):
+            return httpx.Response(status_code=404)
         return httpx.Response(
             200,
             text="""<?xml version='1.0'?>
@@ -49,7 +51,7 @@ def test_arxiv_source_parses_atom_entry():
     assert records[0].paper_url == "http://arxiv.org/abs/1234.5678v1"
     assert records[0].pdf_url == "http://arxiv.org/pdf/1234.5678v1"
     assert records[0].categories == ["cs.CV"]
-    assert "search_query" in captured_request["url"]
+    assert any("search_query" in url for url in captured_urls)
 
 
 def test_arxiv_source_filters_categories():
@@ -123,3 +125,32 @@ def test_arxiv_source_sorts_by_latest_submitted_date_by_default():
 
     assert "sortBy=submittedDate" in captured_request["url"]
     assert "sortOrder=descending" in captured_request["url"]
+
+
+def test_arxiv_source_fetches_full_text_from_pdf(monkeypatch):
+    source = ArxivSource(
+        base_url="https://example.test/api/query",
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(
+                200,
+                text="""<?xml version='1.0'?>
+                <feed xmlns='http://www.w3.org/2005/Atom'>
+                  <entry>
+                    <id>http://arxiv.org/abs/1234.5678v1</id>
+                    <title> Vision Paper </title>
+                    <summary>Abstract text</summary>
+                    <author><name>Alice</name></author>
+                    <link title='pdf' href='http://arxiv.org/pdf/1234.5678v1'/>
+                    <category term='cs.CV'/>
+                  </entry>
+                </feed>""",
+            )
+        ),
+    )
+
+    monkeypatch.setattr(source, "_fetch_full_text", lambda pdf_url: "Full paper body text")
+
+    records = source.fetch()
+
+    assert len(records) == 1
+    assert records[0].full_text == "Full paper body text"

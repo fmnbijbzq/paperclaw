@@ -8,8 +8,9 @@ from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import Base, CrawlRun, Notification, Paper, PaperVersion
+from app.models import Base, CrawlRun, Notification, Paper, PaperInsight, PaperVersion
 from app.schemas import PaperRecord
+from app.summarization.schemas import PaperInsightRecord
 from app.utils.time import utc_now
 
 
@@ -88,6 +89,34 @@ class Database:
             session.commit()
             return UpsertPaperResult(paper=paper, created=created)
 
+    def upsert_paper_insight(self, *, paper_id: int, insight: PaperInsightRecord) -> PaperInsight:
+        with self._session() as session:
+            paper = session.get(Paper, paper_id)
+            if paper is None:
+                raise ValueError(f"paper {paper_id} does not exist")
+
+            stored = session.scalar(select(PaperInsight).where(PaperInsight.paper_id == paper_id))
+            if stored is None:
+                stored = PaperInsight(paper_id=paper_id)
+                session.add(stored)
+
+            stored.summary_short = insight.summary_short
+            stored.summary_long = insight.summary_long
+            stored.novelty_points = list(insight.novelty_points)
+            stored.limitations = list(insight.limitations)
+            stored.applications = list(insight.applications)
+            stored.confidence_score = insight.confidence_score
+
+            session.commit()
+            return stored
+
+    def get_paper_insight(self, *, paper_id: int) -> PaperInsight | None:
+        with self._session() as session:
+            return session.scalar(select(PaperInsight).where(PaperInsight.paper_id == paper_id))
+
+    def list_unnotified_papers_with_limit(self, *, destination: str, limit: int) -> list[Paper]:
+        return self.list_unnotified_papers(destination=destination, limit=limit)
+
     def record_notification_attempt(
         self,
         *,
@@ -165,15 +194,24 @@ class Database:
             return
 
         inspector = inspect(self.engine)
-        if not inspector.has_table("notifications"):
-            return
-
-        columns = {column["name"] for column in inspector.get_columns("notifications")}
         statements: list[str] = []
-        if "success" not in columns:
-            statements.append("ALTER TABLE notifications ADD COLUMN success BOOLEAN NOT NULL DEFAULT 1")
-        if "error_message" not in columns:
-            statements.append("ALTER TABLE notifications ADD COLUMN error_message TEXT")
+
+        if inspector.has_table("notifications"):
+            notification_columns = {column["name"] for column in inspector.get_columns("notifications")}
+            if "success" not in notification_columns:
+                statements.append("ALTER TABLE notifications ADD COLUMN success BOOLEAN NOT NULL DEFAULT 1")
+            if "error_message" not in notification_columns:
+                statements.append("ALTER TABLE notifications ADD COLUMN error_message TEXT")
+
+        if inspector.has_table("papers"):
+            paper_columns = {column["name"] for column in inspector.get_columns("papers")}
+            if "full_text" not in paper_columns:
+                statements.append("ALTER TABLE papers ADD COLUMN full_text TEXT")
+
+        if inspector.has_table("paper_versions"):
+            version_columns = {column["name"] for column in inspector.get_columns("paper_versions")}
+            if "full_text" not in version_columns:
+                statements.append("ALTER TABLE paper_versions ADD COLUMN full_text TEXT")
 
         if not statements:
             return
@@ -199,6 +237,7 @@ class Database:
         paper.dedup_key = record.dedup_key
         paper.title = record.title
         paper.abstract = record.abstract
+        paper.full_text = record.full_text
         paper.authors = list(record.authors)
         paper.paper_url = record.paper_url
         paper.pdf_url = record.pdf_url
@@ -214,6 +253,7 @@ class Database:
             paper=paper,
             title=paper.title,
             abstract=paper.abstract,
+            full_text=paper.full_text,
             authors=list(paper.authors),
             categories=list(paper.categories),
             paper_url=paper.paper_url,

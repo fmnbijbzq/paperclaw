@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 from app.utils.time import utc_now
@@ -23,6 +23,7 @@ class Paper(Base):
     dedup_key: Mapped[str | None] = mapped_column(String(500))
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     abstract: Mapped[str | None] = mapped_column(Text)
+    full_text: Mapped[str | None] = mapped_column(Text)
     authors: Mapped[list[str]] = mapped_column(JSON, default=list)
     paper_url: Mapped[str] = mapped_column(String(1000), nullable=False)
     pdf_url: Mapped[str | None] = mapped_column(String(1000))
@@ -44,6 +45,10 @@ class Paper(Base):
         back_populates="paper",
         cascade="all, delete-orphan",
     )
+    insights: Mapped[list["PaperInsight"]] = relationship(
+        back_populates="paper",
+        cascade="all, delete-orphan",
+    )
 
 
 class PaperVersion(Base):
@@ -53,6 +58,7 @@ class PaperVersion(Base):
     paper_id: Mapped[int] = mapped_column(ForeignKey("papers.paper_id", ondelete="CASCADE"), nullable=False)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     abstract: Mapped[str | None] = mapped_column(Text)
+    full_text: Mapped[str | None] = mapped_column(Text)
     authors: Mapped[list[str]] = mapped_column(JSON, default=list)
     categories: Mapped[list[str]] = mapped_column(JSON, default=list)
     paper_url: Mapped[str] = mapped_column(String(1000), nullable=False)
@@ -90,3 +96,26 @@ class Notification(Base):
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     paper: Mapped[Paper] = relationship(back_populates="notifications")
+
+
+class PaperInsight(Base):
+    __tablename__ = "paper_insights"
+    __table_args__ = (UniqueConstraint("paper_id", name="uq_paper_insights_paper_id"),)
+
+    insight_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    paper_id: Mapped[int] = mapped_column(ForeignKey("papers.paper_id", ondelete="CASCADE"), nullable=False)
+    summary_short: Mapped[str] = mapped_column(Text, nullable=False)
+    summary_long: Mapped[str] = mapped_column(Text, nullable=False)
+    novelty_points: Mapped[list[str]] = mapped_column(JSON, default=list)
+    limitations: Mapped[list[str]] = mapped_column(JSON, default=list)
+    applications: Mapped[list[str]] = mapped_column(JSON, default=list)
+    confidence_score: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    paper: Mapped[Paper] = relationship(back_populates="insights")

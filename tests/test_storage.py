@@ -8,6 +8,7 @@ if str(_ROOT) not in sys.path:
 
 from app.schemas import PaperRecord
 from app.storage import Database
+from app.summarization.schemas import PaperInsightRecord
 
 
 def _build_paper(source_paper_id: str = "1234.5678", title: str = "Test Paper") -> PaperRecord:
@@ -15,6 +16,8 @@ def _build_paper(source_paper_id: str = "1234.5678", title: str = "Test Paper") 
         source="arxiv",
         source_paper_id=source_paper_id,
         title=title,
+        abstract="test abstract",
+        full_text="test full text",
         authors=["Alice", "Bob"],
         paper_url=f"https://arxiv.org/abs/{source_paper_id}",
         dedup_key=f"{title.lower()}|alice|2024",
@@ -148,3 +151,103 @@ def test_create_schema_migrates_legacy_notifications_table(tmp_path):
 
     assert "success" in columns
     assert "error_message" in columns
+
+
+def test_create_schema_migrates_full_text_columns_for_legacy_tables(tmp_path):
+    db_path = tmp_path / "papers.db"
+    conn = sqlite3.connect(db_path)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE papers (
+                paper_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                source VARCHAR(50) NOT NULL,
+                source_paper_id VARCHAR(255) NOT NULL,
+                dedup_key VARCHAR(500),
+                title VARCHAR(500) NOT NULL,
+                abstract TEXT,
+                authors JSON,
+                paper_url VARCHAR(1000) NOT NULL,
+                pdf_url VARCHAR(1000),
+                venue VARCHAR(255),
+                categories JSON,
+                published_at DATETIME,
+                updated_at_source DATETIME,
+                raw_payload JSON,
+                created_at DATETIME NOT NULL,
+                updated_at DATETIME NOT NULL
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE paper_versions (
+                version_id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
+                paper_id INTEGER NOT NULL,
+                title VARCHAR(500) NOT NULL,
+                abstract TEXT,
+                authors JSON,
+                categories JSON,
+                paper_url VARCHAR(1000) NOT NULL,
+                pdf_url VARCHAR(1000),
+                venue VARCHAR(255),
+                published_at DATETIME,
+                updated_at_source DATETIME,
+                raw_payload JSON,
+                created_at DATETIME NOT NULL
+            )
+            """
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    db = Database(f"sqlite:///{db_path}")
+    db.create_schema()
+
+    migrated = sqlite3.connect(db_path)
+    try:
+        paper_columns = {row[1] for row in migrated.execute("PRAGMA table_info(papers)")}
+        version_columns = {row[1] for row in migrated.execute("PRAGMA table_info(paper_versions)")}
+    finally:
+        migrated.close()
+
+    assert "full_text" in paper_columns
+    assert "full_text" in version_columns
+
+
+def test_upsert_paper_insight_creates_and_updates_single_row(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    paper = db.upsert_paper(_build_paper("3333.3333", "Insight Paper"))
+
+    created = db.upsert_paper_insight(
+        paper_id=paper.paper_id,
+        insight=PaperInsightRecord(
+            summary_short="short",
+            summary_long="long",
+            novelty_points=["n1"],
+            limitations=["l1"],
+            applications=["a1"],
+            confidence_score=0.8,
+        ),
+    )
+    updated = db.upsert_paper_insight(
+        paper_id=paper.paper_id,
+        insight=PaperInsightRecord(
+            summary_short="short2",
+            summary_long="long2",
+            novelty_points=["n2"],
+            limitations=["l2"],
+            applications=["a2"],
+            confidence_score=0.9,
+        ),
+    )
+
+    stored = db.get_paper_insight(paper_id=paper.paper_id)
+
+    assert created.insight_id == updated.insight_id
+    assert stored is not None
+    assert stored.summary_short == "short2"
+    assert stored.novelty_points == ["n2"]
+    assert stored.confidence_score == 0.9

@@ -1,0 +1,18 @@
+# {{ title }}
+
+{{ hook }}
+
+## 口播脚本（30~60秒）
+先说这篇论文做了什么：{{ insight.summary_short }}
+
+它的三个亮点：
+{% for point in insight.novelty_points[:3] %}
+- {{ point }}
+{% endfor %}
+
+最后提醒：{{ insight.limitations[0] if insight.limitations else '请结合原文审阅关键实验。' }}
+
+## 分镜建议
+1. 封面：论文标题 + 会议
+2. 中段：创新点逐条出现
+3. 结尾：适用场景 + 关注引导

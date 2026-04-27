@@ -19,6 +19,8 @@ class FakeSource:
                 source="arxiv",
                 source_paper_id="1234.5678",
                 title="Vision Paper",
+                abstract="Abstract text",
+                full_text="Full text content",
                 authors=["Alice"],
                 paper_url="https://arxiv.org/abs/1234.5678",
             )
@@ -44,6 +46,7 @@ def test_run_pipeline_inserts_and_returns_summary(tmp_path):
     assert summary.total_notified == 0
     assert len(summary.new_papers) == 1
     assert summary.new_papers[0].dedup_key == "vision paper|alice"
+    assert summary.total_insighted == 1
 
 
 def test_run_pipeline_is_idempotent_across_repeated_runs(tmp_path):
@@ -99,3 +102,19 @@ def test_run_pipeline_continues_after_one_source_fails(tmp_path):
     assert summary.per_source["arxiv"]["status"] == "success"
     assert summary.failed_sources == ["broken"]
     assert summary.has_failures is True
+
+
+def test_run_pipeline_continues_when_insight_generation_fails(tmp_path, monkeypatch):
+    class BrokenSummarizer:
+        def generate(self, paper):
+            raise RuntimeError("insight failed")
+
+    summary = run_pipeline(
+        database_url=f"sqlite:///{tmp_path/'papers.db'}",
+        sources=[FakeSource()],
+        notifier=None,
+        summarizer=BrokenSummarizer(),
+    )
+
+    assert summary.total_new == 1
+    assert summary.total_insighted == 0

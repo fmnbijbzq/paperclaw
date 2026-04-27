@@ -8,6 +8,7 @@ import logging
 from app.normalizer import normalize_paper
 from app.schemas import PaperRecord
 from app.storage import Database
+from app.summarization.service import SummarizationService
 
 LOGGER = logging.getLogger(__name__)
 
@@ -17,6 +18,7 @@ class PipelineSummary:
     total_fetched: int = 0
     total_new: int = 0
     total_notified: int = 0
+    total_insighted: int = 0
     new_papers: list[PaperRecord] = field(default_factory=list)
     per_source: dict[str, dict[str, Any]] = field(default_factory=dict)
     failed_sources: list[str] = field(default_factory=list)
@@ -26,7 +28,7 @@ class PipelineSummary:
         return bool(self.failed_sources)
 
 
-def run_pipeline(database_url: str, sources: list, notifier=None) -> PipelineSummary:
+def run_pipeline(database_url: str, sources: list, notifier=None, summarizer: SummarizationService | None = None) -> PipelineSummary:
     """运行完整的爬虫管道：抓取 -> 标准化 -> 去重入库 -> 通知。"""
     LOGGER.info(f"正在连接到数据库：{database_url}")
     db = Database(database_url)
@@ -34,6 +36,7 @@ def run_pipeline(database_url: str, sources: list, notifier=None) -> PipelineSum
     LOGGER.info("数据库 schema 已创建/验证")
 
     summary = PipelineSummary()
+    summarizer = summarizer or SummarizationService()
 
     # 统计启用的数据源数量
     LOGGER.info(f"开始处理 {len(sources)} 个数据源...")
@@ -72,6 +75,13 @@ def run_pipeline(database_url: str, sources: list, notifier=None) -> PipelineSum
                     summary.total_new += 1
                     new_count += 1
                     summary.new_papers.append(normalized)
+
+                try:
+                    insight = summarizer.generate(normalized)
+                    db.upsert_paper_insight(paper_id=result.paper.paper_id, insight=insight)
+                    summary.total_insighted += 1
+                except Exception as insight_exc:
+                    LOGGER.warning("  论文总结失败 [%s]: %s", normalized.title, insight_exc)
 
             # 完成当前数据源的抓取任务
             db.finish_crawl_run(

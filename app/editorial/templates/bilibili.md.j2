@@ -1,0 +1,21 @@
+# {{ title }}
+
+{{ hook }}
+
+## 核心创新点
+{% for point in insight.novelty_points %}
+- {{ point }}
+{% endfor %}
+
+## 局限与风险
+{% for item in insight.limitations %}
+- {{ item }}
+{% endfor %}
+
+## 适用方向
+{% for item in insight.applications %}
+- {{ item }}
+{% endfor %}
+
+## 视频结尾引导
+欢迎在评论区告诉我你最想复现哪一部分实验。
