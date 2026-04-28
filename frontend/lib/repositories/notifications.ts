@@ -1,4 +1,5 @@
-import { demoNotificationsDataSource, type NotificationsDataSource } from "../data-sources/demo/notifications.ts";
+import { runtimeDataSources } from "../data-sources/index.ts";
+import type { NotificationsDataSource } from "../data-sources/demo/notifications.ts";
 import type { NotificationItem } from "../types.ts";
 
 export interface NotificationsRepository {
@@ -25,4 +26,4 @@ export function createNotificationsRepository(dataSource: NotificationsDataSourc
   };
 }
 
-export const notificationsRepository = createNotificationsRepository(demoNotificationsDataSource);
+export const notificationsRepository = createNotificationsRepository(runtimeDataSources.notifications);

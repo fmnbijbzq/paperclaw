@@ -1,4 +1,5 @@
-import { demoPipelineDataSource, type PipelineDataSource } from "../data-sources/demo/pipeline.ts";
+import { runtimeDataSources } from "../data-sources/index.ts";
+import type { PipelineDataSource } from "../data-sources/demo/pipeline.ts";
 import type { PaperSource, PipelineStageItem, SourceHealthItem } from "../types.ts";
 
 export interface PipelineRepository {
@@ -23,4 +24,4 @@ export function createPipelineRepository(dataSource: PipelineDataSource): Pipeli
   };
 }
 
-export const pipelineRepository = createPipelineRepository(demoPipelineDataSource);
+export const pipelineRepository = createPipelineRepository(runtimeDataSources.pipeline);

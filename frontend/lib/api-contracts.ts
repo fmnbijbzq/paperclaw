@@ -1,4 +1,5 @@
 import type {
+  EditorialDraftItem,
   NotificationItem,
   PaperInsightItem,
   PaperItem,
@@ -45,6 +46,16 @@ export interface PapersListResponse {
   items: PaperListItemContract[];
   total: number;
   appliedQuery: string;
+}
+
+export interface PaperInsightsResponse {
+  items: PaperInsightItem[];
+  total: number;
+}
+
+export interface EditorialDraftsResponse {
+  items: EditorialDraftItem[];
+  total: number;
 }
 
 export interface PaperDetailRequest {
@@ -107,4 +118,38 @@ export function createApiEnvelope<TData>(data: TData, options: CreateApiMetaOpti
     data,
     meta: createApiMeta(options),
   };
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
+function isApiDataSource(value: unknown): value is ApiDataSource {
+  return value === "demo" || value === "http";
+}
+
+export function isApiEnvelope<TData>(value: unknown): value is ApiEnvelope<TData> {
+  if (!isRecord(value) || !("meta" in value) || !("data" in value)) {
+    return false;
+  }
+
+  const { meta } = value;
+
+  if (!isRecord(meta)) {
+    return false;
+  }
+
+  return (
+    typeof meta.generatedAt === "string" &&
+    typeof meta.schemaVersion === "string" &&
+    isApiDataSource(meta.dataSource)
+  );
+}
+
+export function parseApiEnvelope<TData>(value: unknown): ApiEnvelope<TData> {
+  if (!isApiEnvelope<TData>(value)) {
+    throw new Error("Invalid API envelope.");
+  }
+
+  return value;
 }

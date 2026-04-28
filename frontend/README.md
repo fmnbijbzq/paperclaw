@@ -12,12 +12,18 @@ Standalone Next.js companion console for the Paperclaw backend. The app uses rea
 
 ## Architecture
 
-The frontend is still demo-data backed, but the app now routes data through an explicit contract and repository boundary so a future live backend can replace only the data-source layer.
+The frontend is still demo-data backed by default, but the app now routes data through an explicit contract, runtime config, and repository boundary so a future live backend can replace only the data-source layer.
 
 - `frontend/lib/api-contracts.ts`
   Frontend-facing request/response contracts for future papers, paper detail, pipeline, and notifications endpoints.
+- `frontend/lib/runtime-config.ts`
+  Runtime mode resolution for `demo` vs `http`, plus the optional API base URL.
+- `frontend/lib/data-sources/index.ts`
+  Central resolver that selects demo or HTTP-backed data sources from the runtime config.
 - `frontend/lib/data-sources/demo/*.ts`
   The active demo data source implementations. These read the current in-repo fixtures and expose async methods shaped like future HTTP-backed data sources.
+- `frontend/lib/data-sources/http/*.ts`
+  HTTP skeletons for papers, notifications, and pipeline data. These unwrap API envelopes and map them into the existing repository-facing shapes.
 - `frontend/lib/repositories/*.ts`
   Domain repositories for papers, notifications, and pipeline data. They provide stable access patterns for sorting, lookups, and repository-level composition.
 - `frontend/lib/queries.ts`
@@ -29,13 +35,45 @@ The frontend is still demo-data backed, but the app now routes data through an e
 
 Current path:
 
-`demo-data.ts` -> `data-sources/demo/*` -> `repositories/*` -> `queries.ts` -> `app/*`
+`runtime-config.ts` -> `data-sources/index.ts` -> `data-sources/demo/*` -> `repositories/*` -> `queries.ts` -> `app/*`
 
 Future live path:
 
-`backend HTTP API` -> `http data sources` -> `repositories/*` -> `queries.ts` -> `app/*`
+`runtime-config.ts` -> `data-sources/index.ts` -> `data-sources/http/*` -> `repositories/*` -> `queries.ts` -> `app/*`
 
 That keeps the page and component layer stable when the backend integration arrives.
+
+## Runtime modes
+
+The repository and query layers keep the page APIs unchanged while switching the underlying data source at one boundary.
+
+- `demo`
+  Default mode. No backend required. Repositories resolve the existing in-repo fixture-backed data sources.
+- `http`
+  Future backend mode. Repositories resolve lightweight HTTP data source skeletons that expect JSON API envelopes and map them back into the current repository-facing types.
+
+Because the data access stays in the server-side repository layer, the mode is configured with server environment variables:
+
+```bash
+PAPERCLAW_DATA_SOURCE=demo
+PAPERCLAW_API_BASE_URL=https://paperclaw.example/api
+```
+
+Behavior notes:
+
+- If `PAPERCLAW_DATA_SOURCE` is unset or unsupported, the frontend safely falls back to `demo`.
+- `PAPERCLAW_API_BASE_URL` is only required when `PAPERCLAW_DATA_SOURCE=http`.
+- Tests do not require a live backend. The HTTP layer is exercised with injected fetch-style fixtures.
+
+Current HTTP endpoint assumptions:
+
+- `GET /papers`
+- `GET /papers/insights`
+- `GET /papers/editorial-drafts`
+- `GET /notifications`
+- `GET /pipeline/summary`
+
+These are intentionally thin skeleton assumptions so live backend wiring can be added later without changing the route, query, or repository consumers.
 
 ## Install
 
@@ -69,8 +107,8 @@ npm run lint
 
 ## Notes
 
-- The frontend is intentionally standalone and does not call the Python backend yet.
-- Demo data is still the active source of truth, but it is now hidden behind async repositories and data sources.
+- The frontend is intentionally standalone and remains in `demo` mode by default.
+- Demo data is still the active source of truth unless `PAPERCLAW_DATA_SOURCE=http` is explicitly configured.
 - Route-level loading UI lives in `frontend/app/**/loading.tsx`.
 - App-level recovery UI lives in `frontend/app/error.tsx` and `frontend/components/error-panel.tsx`.
 - Route structure:

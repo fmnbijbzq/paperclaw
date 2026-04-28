@@ -1,4 +1,5 @@
-import { demoPapersDataSource, type PapersDataSource } from "../data-sources/demo/papers.ts";
+import { runtimeDataSources } from "../data-sources/index.ts";
+import type { PapersDataSource } from "../data-sources/demo/papers.ts";
 import type { EditorialDraftItem, PaperInsightItem, PaperItem } from "../types.ts";
 
 export interface PaperRepositoryRecord {
@@ -89,4 +90,4 @@ export function createPapersRepository(dataSource: PapersDataSource): PapersRepo
   };
 }
 
-export const papersRepository = createPapersRepository(demoPapersDataSource);
+export const papersRepository = createPapersRepository(runtimeDataSources.papers);
