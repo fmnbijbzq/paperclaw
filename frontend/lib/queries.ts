@@ -1,92 +1,91 @@
-import { editorialDrafts, insights, notifications, papers, pipelineStages, sourceHealth } from "./demo-data.ts";
-import type {
-  DashboardSnapshot,
-  EditorialDraftItem,
-  NotificationItem,
-  PaperRecord,
-  PaperSource,
-} from "./types.ts";
+import { notificationsRepository } from "./repositories/notifications.ts";
+import { papersRepository, type PaperRepositoryRecord } from "./repositories/papers.ts";
+import { pipelineRepository } from "./repositories/pipeline.ts";
+import type { DashboardSnapshot, NotificationItem, PaperRecord, PaperSource } from "./types.ts";
 
-function compareDesc(left: string, right: string): number {
-  return new Date(right).getTime() - new Date(left).getTime();
+function buildNotificationsByPaperId(notifications: NotificationItem[]): Map<number, NotificationItem[]> {
+  const notificationsByPaperId = new Map<number, NotificationItem[]>();
+
+  for (const notification of notifications) {
+    const existingNotifications = notificationsByPaperId.get(notification.paperId) ?? [];
+    existingNotifications.push(notification);
+    notificationsByPaperId.set(notification.paperId, existingNotifications);
+  }
+
+  return notificationsByPaperId;
 }
 
-function getInsightByPaperId(paperId: number) {
-  return insights.find((insight) => insight.paperId === paperId) ?? null;
+function hydratePaperRecord(
+  record: PaperRepositoryRecord,
+  notificationsByPaperId: Map<number, NotificationItem[]>,
+): PaperRecord {
+  return {
+    paper: record.paper,
+    insight: record.insight,
+    notifications: notificationsByPaperId.get(record.paper.paperId) ?? [],
+    editorialDrafts: record.editorialDrafts,
+  };
 }
 
-function getNotificationsByPaperId(paperId: number): NotificationItem[] {
-  return notifications
-    .filter((notification) => notification.paperId === paperId)
-    .sort((left, right) => compareDesc(left.sentAt, right.sentAt));
+function hydratePaperRecords(records: PaperRepositoryRecord[], notifications: NotificationItem[]): PaperRecord[] {
+  const notificationsByPaperId = buildNotificationsByPaperId(notifications);
+
+  return records.map((record) => hydratePaperRecord(record, notificationsByPaperId));
 }
 
-function getDraftsByPaperId(paperId: number): EditorialDraftItem[] {
-  return editorialDrafts
-    .filter((draft) => draft.paperId === paperId)
-    .sort((left, right) => compareDesc(left.updatedAt, right.updatedAt));
-}
+export async function getPaperDetail(paperId: number): Promise<PaperRecord | null> {
+  const [record, notifications] = await Promise.all([
+    papersRepository.getRecord(paperId),
+    notificationsRepository.listByPaperId(paperId),
+  ]);
 
-export function getPaperDetail(paperId: number): PaperRecord | null {
-  const paper = papers.find((item) => item.paperId === paperId);
-
-  if (!paper) {
+  if (!record) {
     return null;
   }
 
   return {
-    paper,
-    insight: getInsightByPaperId(paperId),
-    notifications: getNotificationsByPaperId(paperId),
-    editorialDrafts: getDraftsByPaperId(paperId),
+    paper: record.paper,
+    insight: record.insight,
+    notifications,
+    editorialDrafts: record.editorialDrafts,
   };
 }
 
-export function listPaperRecords(): PaperRecord[] {
-  return [...papers]
-    .sort((left, right) => compareDesc(left.publishedAt, right.publishedAt))
-    .map((paper) => ({
-      paper,
-      insight: getInsightByPaperId(paper.paperId),
-      notifications: getNotificationsByPaperId(paper.paperId),
-      editorialDrafts: getDraftsByPaperId(paper.paperId),
-    }));
+export async function listPaperRecords(): Promise<PaperRecord[]> {
+  const [records, notifications] = await Promise.all([
+    papersRepository.listRecords(),
+    notificationsRepository.listFeed(),
+  ]);
+
+  return hydratePaperRecords(records, notifications);
 }
 
-export function searchPapers(query = ""): PaperRecord[] {
-  const normalizedQuery = query.trim().toLowerCase();
+export async function searchPapers(query = ""): Promise<PaperRecord[]> {
+  const [records, notifications] = await Promise.all([
+    papersRepository.search(query),
+    notificationsRepository.listFeed(),
+  ]);
 
-  if (!normalizedQuery) {
-    return listPaperRecords();
-  }
-
-  return listPaperRecords().filter(({ paper, insight }) => {
-    const haystack = [
-      paper.title,
-      paper.abstract,
-      paper.source,
-      paper.venue,
-      paper.authors.join(" "),
-      paper.categories.join(" "),
-      insight?.summaryShort ?? "",
-    ]
-      .join(" ")
-      .toLowerCase();
-
-    return haystack.includes(normalizedQuery);
-  });
+  return hydratePaperRecords(records, notifications);
 }
 
-export function getNotificationFeed(): NotificationItem[] {
-  return [...notifications].sort((left, right) => compareDesc(left.sentAt, right.sentAt));
+export async function getNotificationFeed(): Promise<NotificationItem[]> {
+  return notificationsRepository.listFeed();
 }
 
-export function getSourceHealthBySource(source: PaperSource) {
-  return sourceHealth.find((item) => item.source === source) ?? null;
+export async function getSourceHealthBySource(source: PaperSource) {
+  return pipelineRepository.getSourceHealthBySource(source);
 }
 
-export function getDashboardSnapshot(): DashboardSnapshot {
-  const records = listPaperRecords();
+export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
+  const [paperRecords, notifications, sourceHealth, pipelineStages, editorialDrafts] = await Promise.all([
+    papersRepository.listRecords(),
+    notificationsRepository.listFeed(),
+    pipelineRepository.listSourceHealth(),
+    pipelineRepository.listStages(),
+    papersRepository.listEditorialDrafts(),
+  ]);
+  const records = hydratePaperRecords(paperRecords, notifications);
   const papersWithInsights = records.filter((record) => record.insight);
   const successfulNotificationPaperIds = new Set(
     notifications.filter((notification) => notification.success).map((notification) => notification.paperId),
@@ -99,7 +98,7 @@ export function getDashboardSnapshot(): DashboardSnapshot {
     metrics: {
       totalPapers: {
         label: "Papers stored",
-        value: papers.length,
+        value: records.length,
         detail: "Current companion dataset mirrors the backend paper model.",
       },
       papersWithInsights: {
@@ -120,8 +119,8 @@ export function getDashboardSnapshot(): DashboardSnapshot {
     },
     recentPapers: records.slice(0, 4),
     sourceHealth,
-    editorialDrafts: [...editorialDrafts].sort((left, right) => compareDesc(left.updatedAt, right.updatedAt)),
+    editorialDrafts,
     pipelineStages,
-    notifications: getNotificationFeed(),
+    notifications,
   };
 }

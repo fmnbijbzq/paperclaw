@@ -75,6 +75,13 @@ export interface MetricItem {
   detail: string;
 }
 
+export interface DashboardMetrics {
+  totalPapers: MetricItem;
+  papersWithInsights: MetricItem;
+  pendingNotifications: MetricItem;
+  editorialDrafts: MetricItem;
+}
+
 export interface PaperRecord {
   paper: PaperItem;
   insight: PaperInsightItem | null;
@@ -82,13 +89,14 @@ export interface PaperRecord {
   editorialDrafts: EditorialDraftItem[];
 }
 
+export interface NotificationFeedRow {
+  notification: NotificationItem;
+  paperTitle: string;
+  source: PaperSource;
+}
+
 export interface DashboardSnapshot {
-  metrics: {
-    totalPapers: MetricItem;
-    papersWithInsights: MetricItem;
-    pendingNotifications: MetricItem;
-    editorialDrafts: MetricItem;
-  };
+  metrics: DashboardMetrics;
   recentPapers: PaperRecord[];
   sourceHealth: SourceHealthItem[];
   editorialDrafts: EditorialDraftItem[];
