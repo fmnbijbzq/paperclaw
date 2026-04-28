@@ -1,12 +1,12 @@
 import { BellRing, ShieldAlert, ShieldCheck } from "lucide-react";
 
+import { EmptyState } from "@/components/empty-state";
 import { NotificationTable } from "@/components/notification-table";
 import { SectionCard } from "@/components/section-card";
 import { getNotificationFeed, listPaperRecords } from "@/lib/queries";
 
-export default function NotificationsPage() {
-  const feed = getNotificationFeed();
-  const records = listPaperRecords();
+export default async function NotificationsPage() {
+  const [feed, records] = await Promise.all([getNotificationFeed(), listPaperRecords()]);
   const paperMap = new Map(records.map((record) => [record.paper.paperId, record]));
 
   const rows = feed.map((notification) => {
@@ -54,7 +54,15 @@ export default function NotificationsPage() {
         title="Recent delivery attempts"
         description="Rows show per-paper status, destination, timing, and retry context in a form that could later be fed from live backend APIs."
       >
-        <NotificationTable rows={rows} />
+        {rows.length > 0 ? (
+          <NotificationTable rows={rows} />
+        ) : (
+          <EmptyState
+            compact
+            title="No delivery attempts recorded"
+            description="Notification attempts will appear here once the repository returns publish or send activity."
+          />
+        )}
       </SectionCard>
     </div>
   );

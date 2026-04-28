@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ArrowRight, BellRing, BookOpen, Database, FileStack, Sparkles } from "lucide-react";
 
 import { EditorialPreviewCard } from "@/components/editorial-preview-card";
+import { EmptyState } from "@/components/empty-state";
 import { MetricCard } from "@/components/metric-card";
 import { PaperList } from "@/components/paper-list";
 import { PipelineTimeline } from "@/components/pipeline-timeline";
@@ -9,8 +10,9 @@ import { SectionCard } from "@/components/section-card";
 import { SourceHealthCard } from "@/components/source-health-card";
 import { getDashboardSnapshot } from "@/lib/queries";
 
-export default function OverviewPage() {
-  const snapshot = getDashboardSnapshot();
+export default async function OverviewPage() {
+  const snapshot = await getDashboardSnapshot();
+  const recentDrafts = snapshot.editorialDrafts.slice(0, 4);
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -73,11 +75,19 @@ export default function OverviewPage() {
         title="Coverage across discovery channels"
         description="Source adapters remain decoupled in the backend, so the UI summarizes stability and intake volume independently."
       >
-        <div className="grid gap-4 lg:grid-cols-3">
-          {snapshot.sourceHealth.map((item) => (
-            <SourceHealthCard key={item.source} item={item} />
-          ))}
-        </div>
+        {snapshot.sourceHealth.length > 0 ? (
+          <div className="grid gap-4 lg:grid-cols-3">
+            {snapshot.sourceHealth.map((item) => (
+              <SourceHealthCard key={item.source} item={item} />
+            ))}
+          </div>
+        ) : (
+          <EmptyState
+            compact
+            title="No source telemetry available"
+            description="Source health will appear here once the repository returns crawler status data."
+          />
+        )}
       </SectionCard>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
@@ -86,7 +96,15 @@ export default function OverviewPage() {
           title="Current workflow state"
           description="Maps the frontend directly to the implemented Paperclaw stages and highlights where future UI-driven workflow could expand."
         >
-          <PipelineTimeline stages={snapshot.pipelineStages} />
+          {snapshot.pipelineStages.length > 0 ? (
+            <PipelineTimeline stages={snapshot.pipelineStages} />
+          ) : (
+            <EmptyState
+              compact
+              title="No pipeline stages returned"
+              description="This view is ready for live stage data once the backend integration is connected."
+            />
+          )}
         </SectionCard>
 
         <SectionCard
@@ -94,11 +112,19 @@ export default function OverviewPage() {
           title="Most recent platform drafts"
           description="Draft markdown artifacts already exist in the backend flow; the console exposes them as reviewable content inventory."
         >
-          <div className="space-y-4">
-            {snapshot.editorialDrafts.slice(0, 4).map((draft) => (
-              <EditorialPreviewCard key={draft.draftId} draft={draft} />
-            ))}
-          </div>
+          {recentDrafts.length > 0 ? (
+            <div className="space-y-4">
+              {recentDrafts.map((draft) => (
+                <EditorialPreviewCard key={draft.draftId} draft={draft} />
+              ))}
+            </div>
+          ) : (
+            <EmptyState
+              compact
+              title="No editorial drafts yet"
+              description="Generated markdown artifacts will show up here once the editorial stage produces output."
+            />
+          )}
         </SectionCard>
       </div>
 
@@ -113,7 +139,15 @@ export default function OverviewPage() {
           </Link>
         }
       >
-        <PaperList records={snapshot.recentPapers} />
+        {snapshot.recentPapers.length > 0 ? (
+          <PaperList records={snapshot.recentPapers} />
+        ) : (
+          <EmptyState
+            compact
+            title="No recent papers in the working set"
+            description="Once discovery data is present, the newest records will surface here with insight and notification context."
+          />
+        )}
       </SectionCard>
     </div>
   );

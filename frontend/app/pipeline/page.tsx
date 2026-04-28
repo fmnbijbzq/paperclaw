@@ -1,5 +1,6 @@
 import { ArrowRight, CheckCircle2, Clock3, Sparkles } from "lucide-react";
 
+import { EmptyState } from "@/components/empty-state";
 import { PipelineTimeline } from "@/components/pipeline-timeline";
 import { SectionCard } from "@/components/section-card";
 import { StatusBadge } from "@/components/status-badge";
@@ -23,8 +24,8 @@ const extensionPoints = [
   },
 ];
 
-export default function PipelinePage() {
-  const snapshot = getDashboardSnapshot();
+export default async function PipelinePage() {
+  const snapshot = await getDashboardSnapshot();
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -41,7 +42,15 @@ export default function PipelinePage() {
         title="What Paperclaw already does"
         description="Each stage references concrete backend files and keeps the UI grounded in the existing codebase rather than an imagined product roadmap."
       >
-        <PipelineTimeline stages={snapshot.pipelineStages} />
+        {snapshot.pipelineStages.length > 0 ? (
+          <PipelineTimeline stages={snapshot.pipelineStages} />
+        ) : (
+          <EmptyState
+            compact
+            title="No pipeline stages returned"
+            description="This page is ready for live stage data once the backend-facing data source is introduced."
+          />
+        )}
       </SectionCard>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">

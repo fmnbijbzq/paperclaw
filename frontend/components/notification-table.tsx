@@ -1,17 +1,11 @@
 import Link from "next/link";
 
 import { formatDateTime, formatSource } from "@/lib/format";
-import type { NotificationItem, PaperSource } from "@/lib/types";
+import type { NotificationFeedRow } from "@/lib/types";
 import { StatusBadge } from "@/components/status-badge";
 
-interface NotificationTableRow {
-  notification: NotificationItem;
-  paperTitle: string;
-  source: PaperSource;
-}
-
 interface NotificationTableProps {
-  rows: NotificationTableRow[];
+  rows: NotificationFeedRow[];
 }
 
 export function NotificationTable({ rows }: NotificationTableProps) {

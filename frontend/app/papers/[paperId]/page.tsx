@@ -16,7 +16,7 @@ interface PaperDetailPageProps {
 
 export async function generateMetadata({ params }: PaperDetailPageProps): Promise<Metadata> {
   const { paperId } = await params;
-  const record = getPaperDetail(Number(paperId));
+  const record = await getPaperDetail(Number(paperId));
 
   return {
     title: record ? `${record.paper.title} · Paperclaw Console` : "Paper not found · Paperclaw Console",
@@ -25,11 +25,26 @@ export async function generateMetadata({ params }: PaperDetailPageProps): Promis
 
 export default async function PaperDetailPage({ params }: PaperDetailPageProps) {
   const { paperId } = await params;
-  const record = getPaperDetail(Number(paperId));
+  const parsedPaperId = Number(paperId);
+
+  if (!Number.isInteger(parsedPaperId)) {
+    return (
+      <EmptyState
+        eyebrow="Paper detail"
+        title="Paper id is invalid"
+        description="The requested route segment is not a valid numeric paper id, so the companion app cannot resolve a detail record."
+        actionHref="/papers"
+        actionLabel="Back to papers"
+      />
+    );
+  }
+
+  const record = await getPaperDetail(parsedPaperId);
 
   if (!record) {
     return (
       <EmptyState
+        eyebrow="Paper detail"
         title="Paper not found"
         description="This demo dataset does not include the requested paper id. In a live integration this view would map directly to a backend paper lookup."
         actionHref="/papers"
@@ -68,7 +83,11 @@ export default async function PaperDetailPage({ params }: PaperDetailPageProps) 
           {notificationRows.length > 0 ? (
             <NotificationTable rows={notificationRows} />
           ) : (
-            <p className="text-sm subtle-copy">No notification attempts have been recorded for this paper yet.</p>
+            <EmptyState
+              compact
+              title="No notification attempts recorded"
+              description="Feishu delivery has not been attempted for this paper yet, so there is no retry history to inspect."
+            />
           )}
         </SectionCard>
 
@@ -81,7 +100,11 @@ export default async function PaperDetailPage({ params }: PaperDetailPageProps) 
             {record.editorialDrafts.length > 0 ? (
               record.editorialDrafts.map((draft) => <EditorialPreviewCard key={draft.draftId} draft={draft} />)
             ) : (
-              <p className="text-sm subtle-copy">No draft artifacts are attached to this paper yet.</p>
+              <EmptyState
+                compact
+                title="No editorial artifacts attached"
+                description="Draft generation has not produced Bilibili, Xiaohongshu, or Douyin artifacts for this paper yet."
+              />
             )}
           </div>
         </SectionCard>

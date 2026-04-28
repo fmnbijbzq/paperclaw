@@ -5,8 +5,8 @@ import { StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/format";
 import { getDashboardSnapshot } from "@/lib/queries";
 
-export function Topbar() {
-  const snapshot = getDashboardSnapshot();
+export async function Topbar() {
+  const snapshot = await getDashboardSnapshot();
   const latestRun = [...snapshot.sourceHealth].sort(
     (left, right) => new Date(right.lastRunAt).getTime() - new Date(left.lastRunAt).getTime(),
   )[0];

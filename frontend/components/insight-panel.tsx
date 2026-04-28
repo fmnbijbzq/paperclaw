@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/empty-state";
 import { SectionCard } from "@/components/section-card";
 
 interface InsightPanelProps {
@@ -25,7 +26,11 @@ export function InsightPanel({ title, body, items }: InsightPanelProps) {
         </ul>
       ) : null}
       {!body && !hasItems ? (
-        <p className="text-sm subtle-copy">Insight content is not available for this paper yet.</p>
+        <EmptyState
+          compact
+          title="Insight pending"
+          description="Insight generation has not produced content for this section yet."
+        />
       ) : null}
     </SectionCard>
   );

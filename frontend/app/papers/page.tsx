@@ -1,11 +1,12 @@
 import { Search } from "lucide-react";
 
+import { EmptyState } from "@/components/empty-state";
 import { PaperList } from "@/components/paper-list";
 import { SectionCard } from "@/components/section-card";
 import { searchPapers } from "@/lib/queries";
 
-export default function PapersPage() {
-  const records = searchPapers();
+export default async function PapersPage() {
+  const records = await searchPapers();
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -32,7 +33,15 @@ export default function PapersPage() {
         title={`${records.length} papers in the current working set`}
         description="Rows emphasize source, summary confidence, draft count, and notification state for high-density browsing."
       >
-        <PaperList records={records} />
+        {records.length > 0 ? (
+          <PaperList records={records} />
+        ) : (
+          <EmptyState
+            compact
+            title="No papers are available yet"
+            description="When the repository returns paper records, they will render here with insight, delivery, and editorial context."
+          />
+        )}
       </SectionCard>
     </div>
   );
