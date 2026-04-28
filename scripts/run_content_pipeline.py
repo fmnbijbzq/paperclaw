@@ -58,7 +58,7 @@ def main(argv: list[str] | None = None) -> int:
 
     output_dir = default_output_dir(Path(args.base_dir).resolve())
     pairs = [(paper, _to_insight_record(insight)) for paper, insight in rows]
-    result = generate_editorial_files(papers_with_insights=pairs, output_dir=output_dir)
+    result = generate_editorial_files(papers_with_insights=pairs, output_dir=output_dir, db=db)
     print(f"generated={result.generated}")
     for path in result.outputs:
         print(path)

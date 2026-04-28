@@ -43,6 +43,15 @@ def _seed_paper_with_insight(project_root: Path, db_path: Path, title: str = "Vi
     )
 
 
+def _runtime_env() -> dict[str, str]:
+    env = os.environ.copy()
+    python_path_parts = [str(PROJECT_ROOT)]
+    if env.get("PYTHONPATH"):
+        python_path_parts.append(env["PYTHONPATH"])
+    env["PYTHONPATH"] = os.pathsep.join(python_path_parts)
+    return env
+
+
 def test_run_content_pipeline_reads_database_url_from_env(tmp_path):
     project_root = tmp_path / "project"
     project_root.mkdir()
@@ -51,11 +60,7 @@ def test_run_content_pipeline_reads_database_url_from_env(tmp_path):
     env_file.write_text(f"DATABASE_URL=sqlite:///{db_path}\n", encoding="utf-8")
     _seed_paper_with_insight(project_root, db_path)
 
-    env = os.environ.copy()
-    python_path_parts = [str(PROJECT_ROOT)]
-    if env.get("PYTHONPATH"):
-        python_path_parts.append(env["PYTHONPATH"])
-    env["PYTHONPATH"] = os.pathsep.join(python_path_parts)
+    env = _runtime_env()
 
     result = subprocess.run(
         [
@@ -80,6 +85,11 @@ def test_run_content_pipeline_reads_database_url_from_env(tmp_path):
     assert all(path.exists() for path in generated_paths)
     assert all("outputs/editorial/" in path.as_posix() for path in generated_paths)
 
+    db = Database(f"sqlite:///{db_path}")
+    drafts = db.list_editorial_drafts()
+    assert len(drafts) == 3
+    assert {draft.platform for draft in drafts} == {"bilibili", "xiaohongshu", "douyin"}
+
 
 def test_run_content_pipeline_and_export_for_publish_share_runtime_root(tmp_path):
     project_root = tmp_path / "runtime"
@@ -89,11 +99,7 @@ def test_run_content_pipeline_and_export_for_publish_share_runtime_root(tmp_path
     env_file.write_text(f"DATABASE_URL=sqlite:///{db_path}\n", encoding="utf-8")
     _seed_paper_with_insight(project_root, db_path, title="Pipeline Export Paper")
 
-    env = os.environ.copy()
-    python_path_parts = [str(PROJECT_ROOT)]
-    if env.get("PYTHONPATH"):
-        python_path_parts.append(env["PYTHONPATH"])
-    env["PYTHONPATH"] = os.pathsep.join(python_path_parts)
+    env = _runtime_env()
 
     generate = subprocess.run(
         [
@@ -116,6 +122,11 @@ def test_run_content_pipeline_and_export_for_publish_share_runtime_root(tmp_path
     generated_paths = [Path(line.strip()) for line in generate.stdout.splitlines() if line.strip().endswith('.md')]
     assert generated_paths
     generated_date = generated_paths[0].parent.name
+
+    db = Database(f"sqlite:///{db_path}")
+    for draft in db.list_editorial_drafts(platform="bilibili"):
+        db.review_editorial_draft(draft.draft_id, actor="reviewer")
+        db.approve_editorial_draft(draft.draft_id, actor="reviewer")
 
     export = subprocess.run(
         [
@@ -141,11 +152,7 @@ def test_run_content_pipeline_and_export_for_publish_share_runtime_root(tmp_path
 
 
 def test_run_content_pipeline_rejects_non_positive_limit(tmp_path):
-    env = os.environ.copy()
-    python_path_parts = [str(PROJECT_ROOT)]
-    if env.get("PYTHONPATH"):
-        python_path_parts.append(env["PYTHONPATH"])
-    env["PYTHONPATH"] = os.pathsep.join(python_path_parts)
+    env = _runtime_env()
 
     result = subprocess.run(
         [
@@ -166,16 +173,28 @@ def test_run_content_pipeline_rejects_non_positive_limit(tmp_path):
 
 
 def test_export_for_publish_supports_platform_filter(tmp_path):
+    db_path = tmp_path / "papers.db"
+    (tmp_path / ".env").write_text(f"DATABASE_URL=sqlite:///{db_path}\n", encoding="utf-8")
     editorial_root = tmp_path / "outputs" / "editorial" / "2026-04-27"
     editorial_root.mkdir(parents=True)
-    draft = editorial_root / "bilibili-demo.md"
-    draft.write_text("# demo\n", encoding="utf-8")
+    draft_path = editorial_root / "bilibili-demo.md"
+    draft_path.write_text("# demo\n", encoding="utf-8")
 
-    env = os.environ.copy()
-    python_path_parts = [str(PROJECT_ROOT)]
-    if env.get("PYTHONPATH"):
-        python_path_parts.append(env["PYTHONPATH"])
-    env["PYTHONPATH"] = os.pathsep.join(python_path_parts)
+    db = Database(f"sqlite:///{db_path}")
+    db.create_schema()
+    paper = db.upsert_paper(_build_paper("demo-export", "Demo Export Paper"))
+    draft = db.upsert_editorial_draft(
+        paper_id=paper.paper_id,
+        platform="bilibili",
+        title="Demo Export Paper",
+        hook="Demo Hook",
+        markdown_content="# demo\n",
+        output_path=str(draft_path),
+    )
+    db.review_editorial_draft(draft.draft_id, actor="reviewer")
+    db.approve_editorial_draft(draft.draft_id, actor="reviewer")
+
+    env = _runtime_env()
 
     result = subprocess.run(
         [
@@ -201,13 +220,11 @@ def test_export_for_publish_supports_platform_filter(tmp_path):
 
 
 def test_export_for_publish_returns_error_for_missing_platform_dir(tmp_path):
+    db_path = tmp_path / "papers.db"
+    (tmp_path / ".env").write_text(f"DATABASE_URL=sqlite:///{db_path}\n", encoding="utf-8")
     (tmp_path / "outputs" / "editorial" / "2026-04-27").mkdir(parents=True)
 
-    env = os.environ.copy()
-    python_path_parts = [str(PROJECT_ROOT)]
-    if env.get("PYTHONPATH"):
-        python_path_parts.append(env["PYTHONPATH"])
-    env["PYTHONPATH"] = os.pathsep.join(python_path_parts)
+    env = _runtime_env()
 
     result = subprocess.run(
         [
@@ -229,12 +246,50 @@ def test_export_for_publish_returns_error_for_missing_platform_dir(tmp_path):
     assert "no platform drafts" in result.stdout
 
 
+def test_export_for_publish_rejects_unapproved_drafts(tmp_path):
+    db_path = tmp_path / "papers.db"
+    (tmp_path / ".env").write_text(f"DATABASE_URL=sqlite:///{db_path}\n", encoding="utf-8")
+    editorial_root = tmp_path / "outputs" / "editorial" / "2026-04-27"
+    editorial_root.mkdir(parents=True)
+    draft_path = editorial_root / "bilibili-demo.md"
+    draft_path.write_text("# demo\n", encoding="utf-8")
+
+    db = Database(f"sqlite:///{db_path}")
+    db.create_schema()
+    paper = db.upsert_paper(_build_paper("demo-reject", "Demo Reject Paper"))
+    db.upsert_editorial_draft(
+        paper_id=paper.paper_id,
+        platform="bilibili",
+        title="Demo Reject Paper",
+        hook="Demo Hook",
+        markdown_content="# demo\n",
+        output_path=str(draft_path),
+    )
+
+    env = _runtime_env()
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(PROJECT_ROOT / "scripts" / "export_for_publish.py"),
+            "--date",
+            "2026-04-27",
+            "--platform",
+            "bilibili",
+        ],
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 1
+    assert "approved" in result.stdout
+
+
 def test_export_for_publish_rejects_unknown_platform(tmp_path):
-    env = os.environ.copy()
-    python_path_parts = [str(PROJECT_ROOT)]
-    if env.get("PYTHONPATH"):
-        python_path_parts.append(env["PYTHONPATH"])
-    env["PYTHONPATH"] = os.pathsep.join(python_path_parts)
+    env = _runtime_env()
 
     result = subprocess.run(
         [

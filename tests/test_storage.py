@@ -34,6 +34,8 @@ def test_database_creates_tables(tmp_path):
     assert db.table_exists("paper_versions")
     assert db.table_exists("crawl_runs")
     assert db.table_exists("notifications")
+    assert db.table_exists("editorial_drafts")
+    assert db.table_exists("export_records")
 
 
 def test_upsert_paper_is_idempotent(tmp_path):
@@ -314,3 +316,96 @@ def test_list_papers_with_insights_skips_papers_without_insights(tmp_path):
 
     assert [item.title for item, _ in rows] == ["Insightful Paper"]
     assert all(item.paper_id != paper.paper_id for item, _ in rows)
+
+
+def test_upsert_editorial_draft_reuses_single_row_and_resets_status_on_regeneration(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    paper = db.upsert_paper(_build_paper("4444.4444", "Draft Paper"))
+
+    created = db.upsert_editorial_draft(
+        paper_id=paper.paper_id,
+        platform="bilibili",
+        title="First Title",
+        hook="First Hook",
+        markdown_content="# first\n",
+        output_path=str(tmp_path / "outputs" / "editorial" / "2026-04-28" / "bilibili-draft.md"),
+    )
+    db.review_editorial_draft(created.draft_id, actor="reviewer")
+    db.approve_editorial_draft(created.draft_id, actor="reviewer")
+
+    updated = db.upsert_editorial_draft(
+        paper_id=paper.paper_id,
+        platform="bilibili",
+        title="Second Title",
+        hook="Second Hook",
+        markdown_content="# second\n",
+        output_path=str(tmp_path / "outputs" / "editorial" / "2026-04-29" / "bilibili-draft.md"),
+    )
+
+    drafts = db.list_editorial_drafts()
+
+    assert created.draft_id == updated.draft_id
+    assert len(drafts) == 1
+    assert updated.status == "generated"
+    assert updated.title == "Second Title"
+    assert updated.output_path.endswith("2026-04-29/bilibili-draft.md")
+
+
+def test_editorial_draft_state_machine_rejects_illegal_transitions(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    paper = db.upsert_paper(_build_paper("5555.5555", "State Paper"))
+    draft = db.upsert_editorial_draft(
+        paper_id=paper.paper_id,
+        platform="xiaohongshu",
+        title="State Title",
+        hook="State Hook",
+        markdown_content="# state\n",
+        output_path=str(tmp_path / "outputs" / "editorial" / "2026-04-28" / "xiaohongshu-state.md"),
+    )
+
+    try:
+        db.approve_editorial_draft(draft.draft_id, actor="reviewer")
+    except ValueError as exc:
+        assert "illegal transition" in str(exc)
+    else:
+        raise AssertionError("expected illegal transition to be rejected")
+
+    reviewed = db.review_editorial_draft(draft.draft_id, actor="reviewer")
+    approved = db.approve_editorial_draft(draft.draft_id, actor="reviewer")
+
+    assert reviewed.status == "in_review"
+    assert approved.status == "approved"
+
+
+def test_record_export_success_transitions_approved_draft_and_persists_audit_row(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    paper = db.upsert_paper(_build_paper("6666.6666", "Export Paper"))
+    draft = db.upsert_editorial_draft(
+        paper_id=paper.paper_id,
+        platform="douyin",
+        title="Export Title",
+        hook="Export Hook",
+        markdown_content="# export\n",
+        output_path=str(tmp_path / "outputs" / "editorial" / "2026-04-28" / "douyin-export.md"),
+    )
+    db.review_editorial_draft(draft.draft_id, actor="reviewer")
+    db.approve_editorial_draft(draft.draft_id, actor="reviewer")
+
+    record = db.record_export_success(
+        draft_id=draft.draft_id,
+        exported_by="publisher",
+        source_path=draft.output_path,
+        destination_path=str(tmp_path / "outputs" / "exported" / "2026-04-28" / "douyin-export.md"),
+    )
+
+    stored = db.get_editorial_draft(draft.draft_id)
+    records = db.list_export_records()
+
+    assert stored is not None
+    assert stored.status == "exported"
+    assert record.success is True
+    assert len(records) == 1
+    assert records[0].draft_id == draft.draft_id

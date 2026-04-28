@@ -11,6 +11,8 @@ dependencies = [
     "pyyaml",
     "pypdf",
     "jinja2",
+    "fastapi",
+    "uvicorn",
 ]
 
 [project.optional-dependencies]

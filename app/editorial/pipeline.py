@@ -5,6 +5,7 @@ from datetime import datetime
 from pathlib import Path
 
 from app.editorial.composer import EditorialComposer, EditorialDraft
+from app.storage import Database
 
 
 @dataclass
@@ -13,7 +14,12 @@ class EditorialPipelineResult:
     outputs: list[Path]
 
 
-def generate_editorial_files(*, papers_with_insights: list[tuple[object, object]], output_dir: Path) -> EditorialPipelineResult:
+def generate_editorial_files(
+    *,
+    papers_with_insights: list[tuple[object, object]],
+    output_dir: Path,
+    db: Database | None = None,
+) -> EditorialPipelineResult:
     templates_dir = Path(__file__).resolve().parent / "templates"
     composer = EditorialComposer(str(templates_dir))
 
@@ -25,6 +31,15 @@ def generate_editorial_files(*, papers_with_insights: list[tuple[object, object]
             draft = composer.compose(platform=platform, paper=paper, insight=insight)
             file_path = _write_draft(output_dir=output_dir, draft=draft, paper=paper)
             generated_files.append(file_path)
+            if db is not None:
+                db.upsert_editorial_draft(
+                    paper_id=getattr(paper, "paper_id"),
+                    platform=platform,
+                    title=draft.title,
+                    hook=draft.hook,
+                    markdown_content=file_path.read_text(encoding="utf-8"),
+                    output_path=str(file_path),
+                )
 
     return EditorialPipelineResult(generated=len(generated_files), outputs=generated_files)
 

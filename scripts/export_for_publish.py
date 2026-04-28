@@ -8,7 +8,9 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
+from app.config import AppSettings
 from app.publish.exporter import export_reviewed_markdown
+from app.storage import Database
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -42,6 +44,10 @@ def main(argv: list[str] | None = None) -> int:
         print(f"no source drafts: {source}")
         return 1
 
+    settings = AppSettings()
+    db = Database(settings.database_url)
+    db.create_schema()
+
     file_glob = "*.md"
     if platform != "all":
         file_glob = f"{platform}-*.md"
@@ -49,7 +55,17 @@ def main(argv: list[str] | None = None) -> int:
             print(f"no platform drafts: {source} ({file_glob})")
             return 1
 
-    exported = export_reviewed_markdown(source_dir=source, destination_dir=destination, file_glob=file_glob)
+    try:
+        exported = export_reviewed_markdown(
+            source_dir=source,
+            destination_dir=destination,
+            file_glob=file_glob,
+            db=db,
+            exported_by="script",
+        )
+    except ValueError as exc:
+        print(str(exc))
+        return 1
     print(f"exported={len(exported)}")
     for file in exported:
         print(file)

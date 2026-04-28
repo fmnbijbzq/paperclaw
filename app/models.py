@@ -49,6 +49,10 @@ class Paper(Base):
         back_populates="paper",
         cascade="all, delete-orphan",
     )
+    editorial_drafts: Mapped[list["EditorialDraft"]] = relationship(
+        back_populates="paper",
+        cascade="all, delete-orphan",
+    )
 
 
 class PaperVersion(Base):
@@ -119,3 +123,54 @@ class PaperInsight(Base):
     )
 
     paper: Mapped[Paper] = relationship(back_populates="insights")
+
+
+class EditorialDraft(Base):
+    __tablename__ = "editorial_drafts"
+    __table_args__ = (UniqueConstraint("paper_id", "platform", name="uq_editorial_drafts_paper_platform"),)
+
+    draft_id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    paper_id: Mapped[int] = mapped_column(ForeignKey("papers.paper_id", ondelete="CASCADE"), nullable=False)
+    platform: Mapped[str] = mapped_column(String(50), nullable=False)
+    title: Mapped[str] = mapped_column(String(500), nullable=False)
+    hook: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    markdown_content: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="generated", nullable=False)
+    assignee: Mapped[str | None] = mapped_column(String(255))
+    review_note: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[str | None] = mapped_column(String(255))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    approved_by: Mapped[str | None] = mapped_column(String(255))
+    approved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rejected_by: Mapped[str | None] = mapped_column(String(255))
+    rejected_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    exported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    output_path: Mapped[str] = mapped_column(String(1000), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    paper: Mapped[Paper] = relationship(back_populates="editorial_drafts")
+    export_records: Mapped[list["ExportRecord"]] = relationship(
+        back_populates="draft",
+        cascade="all, delete-orphan",
+    )
+
+
+class ExportRecord(Base):
+    __tablename__ = "export_records"
+
+    export_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    draft_id: Mapped[str] = mapped_column(ForeignKey("editorial_drafts.draft_id", ondelete="CASCADE"), nullable=False)
+    exported_by: Mapped[str] = mapped_column(String(255), nullable=False)
+    success: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    source_path: Mapped[str] = mapped_column(String(1000), nullable=False)
+    destination_path: Mapped[str | None] = mapped_column(String(1000))
+    error_message: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    draft: Mapped[EditorialDraft] = relationship(back_populates="export_records")

@@ -3,12 +3,13 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from uuid import uuid4
 
 from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import Base, CrawlRun, Notification, Paper, PaperInsight, PaperVersion
+from app.models import Base, CrawlRun, EditorialDraft, ExportRecord, Notification, Paper, PaperInsight, PaperVersion
 from app.schemas import PaperRecord
 from app.summarization.schemas import PaperInsightRecord
 from app.utils.time import utc_now
@@ -193,6 +194,148 @@ class Database:
         with self._session() as session:
             return list(session.scalars(stmt))
 
+    def upsert_editorial_draft(
+        self,
+        *,
+        paper_id: int,
+        platform: str,
+        title: str,
+        hook: str,
+        markdown_content: str,
+        output_path: str,
+    ) -> EditorialDraft:
+        with self._session() as session:
+            draft = session.scalar(
+                select(EditorialDraft).where(
+                    EditorialDraft.paper_id == paper_id,
+                    EditorialDraft.platform == platform,
+                )
+            )
+            if draft is None:
+                draft = EditorialDraft(
+                    draft_id=f"draft-{uuid4().hex}",
+                    paper_id=paper_id,
+                    platform=platform,
+                )
+                session.add(draft)
+
+            draft.title = title
+            draft.hook = hook
+            draft.markdown_content = markdown_content
+            draft.output_path = output_path
+            draft.status = "generated"
+            draft.review_note = None
+            draft.reviewed_by = None
+            draft.reviewed_at = None
+            draft.approved_by = None
+            draft.approved_at = None
+            draft.rejected_by = None
+            draft.rejected_at = None
+            draft.exported_at = None
+            session.commit()
+            return draft
+
+    def list_editorial_drafts(self, *, platform: str | None = None, status: str | None = None) -> list[EditorialDraft]:
+        stmt = select(EditorialDraft).order_by(EditorialDraft.created_at.asc())
+        if platform is not None:
+            stmt = stmt.where(EditorialDraft.platform == platform)
+        if status is not None:
+            stmt = stmt.where(EditorialDraft.status == status)
+        with self._session() as session:
+            return list(session.scalars(stmt))
+
+    def get_editorial_draft(self, draft_id: str) -> EditorialDraft | None:
+        with self._session() as session:
+            return session.get(EditorialDraft, draft_id)
+
+    def assign_editorial_draft(self, draft_id: str, *, assignee: str, actor: str | None = None) -> EditorialDraft:
+        with self._session() as session:
+            draft = self._require_draft(session, draft_id)
+            draft.assignee = assignee
+            if actor:
+                draft.review_note = f"assigned by {actor}"
+            session.commit()
+            return draft
+
+    def review_editorial_draft(self, draft_id: str, *, actor: str, note: str | None = None) -> EditorialDraft:
+        with self._session() as session:
+            draft = self._require_draft(session, draft_id)
+            self._transition_draft(draft, target_status="in_review")
+            draft.reviewed_by = actor
+            draft.reviewed_at = utc_now()
+            draft.review_note = note
+            session.commit()
+            return draft
+
+    def approve_editorial_draft(self, draft_id: str, *, actor: str, note: str | None = None) -> EditorialDraft:
+        with self._session() as session:
+            draft = self._require_draft(session, draft_id)
+            self._transition_draft(draft, target_status="approved")
+            draft.approved_by = actor
+            draft.approved_at = utc_now()
+            draft.review_note = note
+            session.commit()
+            return draft
+
+    def reject_editorial_draft(self, draft_id: str, *, actor: str, note: str | None = None) -> EditorialDraft:
+        with self._session() as session:
+            draft = self._require_draft(session, draft_id)
+            self._transition_draft(draft, target_status="rejected")
+            draft.rejected_by = actor
+            draft.rejected_at = utc_now()
+            draft.review_note = note
+            session.commit()
+            return draft
+
+    def record_export_success(
+        self,
+        *,
+        draft_id: str,
+        exported_by: str,
+        source_path: str,
+        destination_path: str,
+    ) -> ExportRecord:
+        with self._session() as session:
+            draft = self._require_draft(session, draft_id)
+            self._transition_draft(draft, target_status="exported")
+            draft.exported_at = utc_now()
+            record = ExportRecord(
+                draft_id=draft_id,
+                exported_by=exported_by,
+                success=True,
+                source_path=source_path,
+                destination_path=destination_path,
+            )
+            session.add(record)
+            session.commit()
+            return record
+
+    def record_export_failure(
+        self,
+        *,
+        draft_id: str,
+        exported_by: str,
+        source_path: str,
+        error_message: str,
+    ) -> ExportRecord:
+        with self._session() as session:
+            self._require_draft(session, draft_id)
+            record = ExportRecord(
+                draft_id=draft_id,
+                exported_by=exported_by,
+                success=False,
+                source_path=source_path,
+                destination_path=None,
+                error_message=error_message,
+            )
+            session.add(record)
+            session.commit()
+            return record
+
+    def list_export_records(self) -> list[ExportRecord]:
+        with self._session() as session:
+            return list(session.scalars(select(ExportRecord).order_by(ExportRecord.export_id.asc())))
+
     def count_papers(self) -> int:
         with self._session() as session:
             return session.scalar(select(func.count()).select_from(Paper)) or 0
@@ -223,6 +366,20 @@ class Database:
             version_columns = {column["name"] for column in inspector.get_columns("paper_versions")}
             if "full_text" not in version_columns:
                 statements.append("ALTER TABLE paper_versions ADD COLUMN full_text TEXT")
+
+        if inspector.has_table("editorial_drafts"):
+            editorial_columns = {column["name"] for column in inspector.get_columns("editorial_drafts")}
+            for statement in self._editorial_draft_migration_statements(editorial_columns):
+                statements.append(statement)
+
+        if inspector.has_table("export_records"):
+            export_columns = {column["name"] for column in inspector.get_columns("export_records")}
+            if "success" not in export_columns:
+                statements.append("ALTER TABLE export_records ADD COLUMN success BOOLEAN NOT NULL DEFAULT 1")
+            if "destination_path" not in export_columns:
+                statements.append("ALTER TABLE export_records ADD COLUMN destination_path VARCHAR(1000)")
+            if "error_message" not in export_columns:
+                statements.append("ALTER TABLE export_records ADD COLUMN error_message TEXT")
 
         if not statements:
             return
@@ -278,3 +435,44 @@ class Database:
     @staticmethod
     def _paper_changed(session: Session, paper: Paper) -> bool:
         return session.is_modified(paper, include_collections=False)
+
+    @staticmethod
+    def _require_draft(session: Session, draft_id: str) -> EditorialDraft:
+        draft = session.get(EditorialDraft, draft_id)
+        if draft is None:
+            raise ValueError(f"editorial draft {draft_id} does not exist")
+        return draft
+
+    @staticmethod
+    def _transition_draft(draft: EditorialDraft, *, target_status: str) -> None:
+        allowed = {
+            "generated": {"in_review"},
+            "in_review": {"approved", "rejected"},
+            "approved": {"exported"},
+            "rejected": {"in_review"},
+            "exported": set(),
+        }
+        current = draft.status
+        if target_status not in allowed.get(current, set()):
+            raise ValueError(f"illegal transition: {current} -> {target_status}")
+        draft.status = target_status
+
+    @staticmethod
+    def _editorial_draft_migration_statements(columns: set[str]) -> list[str]:
+        statements: list[str] = []
+        desired_columns = {
+            "markdown_content": "ALTER TABLE editorial_drafts ADD COLUMN markdown_content TEXT NOT NULL DEFAULT ''",
+            "assignee": "ALTER TABLE editorial_drafts ADD COLUMN assignee VARCHAR(255)",
+            "review_note": "ALTER TABLE editorial_drafts ADD COLUMN review_note TEXT",
+            "reviewed_by": "ALTER TABLE editorial_drafts ADD COLUMN reviewed_by VARCHAR(255)",
+            "reviewed_at": "ALTER TABLE editorial_drafts ADD COLUMN reviewed_at DATETIME",
+            "approved_by": "ALTER TABLE editorial_drafts ADD COLUMN approved_by VARCHAR(255)",
+            "approved_at": "ALTER TABLE editorial_drafts ADD COLUMN approved_at DATETIME",
+            "rejected_by": "ALTER TABLE editorial_drafts ADD COLUMN rejected_by VARCHAR(255)",
+            "rejected_at": "ALTER TABLE editorial_drafts ADD COLUMN rejected_at DATETIME",
+            "exported_at": "ALTER TABLE editorial_drafts ADD COLUMN exported_at DATETIME",
+        }
+        for column, statement in desired_columns.items():
+            if column not in columns:
+                statements.append(statement)
+        return statements

@@ -1,5 +1,6 @@
 .worktrees/
 __pycache__/
+*.pyc
 app/__pycache__/
 app/utils/__pycache__/
 tests/__pycache__/
@@ -9,3 +10,4 @@ data/
 outputs/
 .vscode/
 .codex
+.venv*/
