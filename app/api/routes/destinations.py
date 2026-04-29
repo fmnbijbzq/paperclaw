@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from datetime import timezone
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.api.schemas import (
     DestinationCreateRequest,
@@ -16,6 +17,26 @@ from app.models import DestinationRecord
 from app.storage import Database
 
 router = APIRouter(tags=["destinations"])
+
+_bearer_scheme = HTTPBearer(auto_error=False)
+
+
+def _require_api_key(
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+) -> None:
+    """Require a valid Bearer token when DESTINATION_API_KEY is configured.
+
+    If the environment variable is not set the check is skipped so that local
+    development works without extra configuration.
+    """
+    import os
+
+    expected_key = os.environ.get("DESTINATION_API_KEY")
+    if not expected_key:
+        return  # auth not configured — allow through
+    if credentials is None or credentials.credentials != expected_key:
+        raise HTTPException(status_code=401, detail="Missing or invalid API key.")
 
 
 def _iso(value) -> str:
@@ -63,7 +84,7 @@ def get_destinations_for_draft(request: Request, draft_id: str) -> dict:
     ).model_dump(by_alias=True)
 
 
-@router.post("/destinations")
+@router.post("/destinations", dependencies=[Depends(_require_api_key)])
 def create_destination(request: Request, body: DestinationCreateRequest) -> dict:
     db: Database = request.app.state.db
     try:
@@ -81,7 +102,7 @@ def create_destination(request: Request, body: DestinationCreateRequest) -> dict
     ).model_dump(by_alias=True)
 
 
-@router.patch("/destinations/{destination_id}")
+@router.patch("/destinations/{destination_id}", dependencies=[Depends(_require_api_key)])
 def update_destination(request: Request, destination_id: int, body: DestinationUpdateRequest) -> dict:
     db: Database = request.app.state.db
     try:

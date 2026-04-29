@@ -61,8 +61,12 @@ export function createHttpDraftsDataSource(options: HttpDataSourceOptions): Draf
     async getDraftDetail(draftId: string) {
       try {
         return await client.get<EditorialDraftDetailResponse>(`drafts/${draftId}`);
-      } catch {
-        return null;
+      } catch (error: unknown) {
+        // Distinguish "not found" (expected) from unexpected server/network errors.
+        if (error instanceof Error && /status 404\b/.test(error.message)) {
+          return null;
+        }
+        throw error;
       }
     },
 

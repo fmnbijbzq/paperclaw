@@ -116,24 +116,15 @@ export function createPapersRepository(dataSource: PapersDataSource): PapersRepo
         const result = await dataSource.searchPapers(normalizedParams);
         const records = await enrichPaperItems(result.items);
 
-        let filtered = records;
-
-        // Apply additional client-side filters that the API might not support
-        if (hasInsight !== undefined) {
-          filtered = filtered.filter((record) => (hasInsight ? !!record.insight : !record.insight));
-        }
-
-        if (hasDraft !== undefined) {
-          filtered = filtered.filter((record) =>
-            hasDraft ? record.editorialDrafts.length > 0 : record.editorialDrafts.length === 0,
-          );
-        }
-
-        const total = filtered.length;
+        // Use the backend's total for pagination metadata — it reflects the
+        // true count of matching rows before limit/offset was applied.  We
+        // only fall back to the current page length when the backend doesn't
+        // provide a total (shouldn't happen, but defensive).
+        const total = result.total ?? records.length;
         const totalPages = Math.ceil(total / pageSize);
 
         return {
-          records: filtered,
+          records,
           total,
           page,
           pageSize,

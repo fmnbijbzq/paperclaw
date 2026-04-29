@@ -22,7 +22,7 @@ export default async function PapersPage({ searchParams }: PapersPageProps) {
 
   const query = rawQuery ?? "";
   const source: PaperSource | "all" = rawSource && validSources.includes(rawSource as PaperSource) ? (rawSource as PaperSource) : "all";
-  const page = rawPage ? Math.max(1, Number.parseInt(rawPage, 10)) : 1;
+  const page = rawPage ? Math.max(1, Number.parseInt(rawPage, 10) || 1) : 1;
 
   const result = await searchPapers({
     q: query || undefined,

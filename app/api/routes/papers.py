@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
-from app.api.schemas import PaperDetailResponse, PaperInsightsResponse, PapersListResponse, create_envelope
+from app.api.schemas import EditorialDraftsResponse, PaperDetailResponse, PaperInsightsResponse, PapersListResponse, create_envelope
+from app.api.services.editorial_workflow import list_drafts
 from app.api.services.read_models import get_paper_detail, list_paper_insights, list_papers
 
 router = APIRouter(prefix="/papers", tags=["papers"])
@@ -42,6 +43,12 @@ def get_paper_insights(request: Request) -> dict:
     db = request.app.state.db
     items = list_paper_insights(db)
     return create_envelope(PaperInsightsResponse(items=items, total=len(items))).model_dump(by_alias=True)
+
+
+@router.get("/editorial-drafts")
+def get_editorial_drafts(request: Request) -> dict:
+    items = list_drafts(request.app.state.db)
+    return create_envelope(EditorialDraftsResponse(items=items, total=len(items))).model_dump(by_alias=True)
 
 
 @router.get("/{paper_id}")
