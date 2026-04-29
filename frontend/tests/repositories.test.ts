@@ -301,6 +301,15 @@ test("pipeline repository exposes stages and source-health lookups", async () =>
         },
       ];
     },
+    async listCrawlRuns() {
+      return [];
+    },
+    async listSummarizationRuns() {
+      return [];
+    },
+    async listEditorialRuns() {
+      return [];
+    },
   } satisfies PipelineDataSource);
 
   const stages = await repository.listStages();
@@ -309,6 +318,58 @@ test("pipeline repository exposes stages and source-health lookups", async () =>
   assert.equal(stages[0]?.stageId, "fetch");
   assert.equal(sourceHealth?.status, "degraded");
   assert.equal(await repository.getSourceHealthBySource("arxiv"), null);
+});
+
+test("pipeline repository exposes run lists", async () => {
+  const repository = createPipelineRepository({
+    async listPipelineStages() {
+      return [];
+    },
+    async listSourceHealth() {
+      return [];
+    },
+    async listCrawlRuns() {
+      return [
+        {
+          runId: 1,
+          source: "arxiv",
+          status: "success",
+          fetchedCount: 10,
+          newCount: 3,
+          errorMessage: null,
+          startedAt: "2026-04-26T06:00:00Z",
+          finishedAt: "2026-04-26T06:05:00Z",
+          durationSeconds: 300,
+        },
+      ];
+    },
+    async listSummarizationRuns() {
+      return [
+        {
+          runId: 1,
+          status: "success",
+          papersProcessed: 10,
+          insightsGenerated: 10,
+          errorMessage: null,
+          startedAt: "2026-04-26T06:05:00Z",
+          finishedAt: "2026-04-26T06:07:00Z",
+          durationSeconds: 120,
+        },
+      ];
+    },
+    async listEditorialRuns() {
+      return [];
+    },
+  } satisfies PipelineDataSource);
+
+  const crawlRuns = await repository.listCrawlRuns();
+  assert.equal(crawlRuns.length, 1);
+  assert.equal(crawlRuns[0]?.source, "arxiv");
+  assert.equal(crawlRuns[0]?.status, "success");
+
+  const sumRuns = await repository.listSummarizationRuns();
+  assert.equal(sumRuns.length, 1);
+  assert.equal(sumRuns[0]?.papersProcessed, 10);
 });
 
 test("drafts repository sorts, filters, and exposes workflow mutations", async () => {

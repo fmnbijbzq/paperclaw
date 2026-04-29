@@ -26,20 +26,46 @@ def generate_editorial_files(
     output_dir.mkdir(parents=True, exist_ok=True)
     generated_files: list[Path] = []
 
-    for paper, insight in papers_with_insights:
-        for platform in ("bilibili", "xiaohongshu", "douyin"):
-            draft = composer.compose(platform=platform, paper=paper, insight=insight)
-            file_path = _write_draft(output_dir=output_dir, draft=draft, paper=paper)
-            generated_files.append(file_path)
-            if db is not None:
-                db.upsert_editorial_draft(
-                    paper_id=getattr(paper, "paper_id"),
-                    platform=platform,
-                    title=draft.title,
-                    hook=draft.hook,
-                    markdown_content=file_path.read_text(encoding="utf-8"),
-                    output_path=str(file_path),
-                )
+    # Track editorial run
+    editorial_run = db.start_editorial_run() if db is not None else None
+    papers_processed = 0
+    drafts_generated = 0
+
+    try:
+        for paper, insight in papers_with_insights:
+            for platform in ("bilibili", "xiaohongshu", "douyin"):
+                draft = composer.compose(platform=platform, paper=paper, insight=insight)
+                file_path = _write_draft(output_dir=output_dir, draft=draft, paper=paper)
+                generated_files.append(file_path)
+                drafts_generated += 1
+                if db is not None:
+                    db.upsert_editorial_draft(
+                        paper_id=getattr(paper, "paper_id"),
+                        platform=platform,
+                        title=draft.title,
+                        hook=draft.hook,
+                        markdown_content=file_path.read_text(encoding="utf-8"),
+                        output_path=str(file_path),
+                    )
+            papers_processed += 1
+
+        if editorial_run is not None and db is not None:
+            db.finish_editorial_run(
+                editorial_run.run_id,
+                status="success",
+                papers_processed=papers_processed,
+                drafts_generated=drafts_generated,
+            )
+    except Exception as exc:
+        if editorial_run is not None and db is not None:
+            db.finish_editorial_run(
+                editorial_run.run_id,
+                status="failed",
+                papers_processed=papers_processed,
+                drafts_generated=drafts_generated,
+                error_message=str(exc),
+            )
+        raise
 
     return EditorialPipelineResult(generated=len(generated_files), outputs=generated_files)
 

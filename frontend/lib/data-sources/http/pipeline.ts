@@ -1,4 +1,9 @@
-import type { PipelineSummaryResponse } from "../../api-contracts.ts";
+import type {
+  CrawlRunsResponse,
+  EditorialRunsResponse,
+  PipelineSummaryResponse,
+  SummarizationRunsResponse,
+} from "../../api-contracts.ts";
 import { createHttpClient, type HttpDataSourceOptions } from "./shared.ts";
 import type { PipelineDataSource } from "../demo/pipeline.ts";
 
@@ -15,6 +20,18 @@ export function createHttpPipelineDataSource(options: HttpDataSourceOptions): Pi
     },
     async listSourceHealth() {
       return (await loadSummary()).sourceHealth;
+    },
+    async listCrawlRuns() {
+      const response = await client.get<CrawlRunsResponse>("pipeline/runs/crawl");
+      return response.items;
+    },
+    async listSummarizationRuns() {
+      const response = await client.get<SummarizationRunsResponse>("pipeline/runs/summarization");
+      return response.items;
+    },
+    async listEditorialRuns() {
+      const response = await client.get<EditorialRunsResponse>("pipeline/runs/editorial");
+      return response.items;
     },
   };
 }

@@ -245,6 +245,55 @@ class PipelineSummaryResponse(ApiModel):
     source_health: list[SourceHealthItem] = Field(alias="sourceHealth")
 
 
+class CrawlRunItem(ApiModel):
+    run_id: int = Field(alias="runId")
+    source: str
+    status: str
+    fetched_count: int = Field(alias="fetchedCount")
+    new_count: int = Field(alias="newCount")
+    error_message: str | None = Field(default=None, alias="errorMessage")
+    started_at: str = Field(alias="startedAt")
+    finished_at: str | None = Field(default=None, alias="finishedAt")
+    duration_seconds: float | None = Field(default=None, alias="durationSeconds")
+
+
+class CrawlRunsResponse(ApiModel):
+    items: list[CrawlRunItem]
+    total: int
+
+
+class SummarizationRunItem(ApiModel):
+    run_id: int = Field(alias="runId")
+    status: str
+    papers_processed: int = Field(alias="papersProcessed")
+    insights_generated: int = Field(alias="insightsGenerated")
+    error_message: str | None = Field(default=None, alias="errorMessage")
+    started_at: str = Field(alias="startedAt")
+    finished_at: str | None = Field(default=None, alias="finishedAt")
+    duration_seconds: float | None = Field(default=None, alias="durationSeconds")
+
+
+class SummarizationRunsResponse(ApiModel):
+    items: list[SummarizationRunItem]
+    total: int
+
+
+class EditorialRunItem(ApiModel):
+    run_id: int = Field(alias="runId")
+    status: str
+    papers_processed: int = Field(alias="papersProcessed")
+    drafts_generated: int = Field(alias="draftsGenerated")
+    error_message: str | None = Field(default=None, alias="errorMessage")
+    started_at: str = Field(alias="startedAt")
+    finished_at: str | None = Field(default=None, alias="finishedAt")
+    duration_seconds: float | None = Field(default=None, alias="durationSeconds")
+
+
+class EditorialRunsResponse(ApiModel):
+    items: list[EditorialRunItem]
+    total: int
+
+
 def create_envelope(data: T) -> ApiEnvelope[T]:
     return ApiEnvelope(
         data=data,

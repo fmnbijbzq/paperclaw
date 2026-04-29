@@ -1,4 +1,5 @@
 import type {
+  CrawlRunItem,
   DraftActionInput,
   DraftAssignInput,
   DraftDetailItem,
@@ -6,6 +7,7 @@ import type {
   DraftStatus,
   EditorialDraftItem,
   EditorialPlatform,
+  EditorialRunItem,
   ExportRecordItem,
   NotificationItem,
   PaperInsightItem,
@@ -14,6 +16,7 @@ import type {
   PaperSource,
   PipelineStageItem,
   SourceHealthItem,
+  SummarizationRunItem,
 } from "./types.ts";
 
 export const API_SCHEMA_VERSION = "2026-04-27";
@@ -112,6 +115,21 @@ export interface PipelineSummaryResponse {
   };
   stages: PipelineStageItem[];
   sourceHealth: SourceHealthItem[];
+}
+
+export interface CrawlRunsResponse {
+  items: CrawlRunItem[];
+  total: number;
+}
+
+export interface SummarizationRunsResponse {
+  items: SummarizationRunItem[];
+  total: number;
+}
+
+export interface EditorialRunsResponse {
+  items: EditorialRunItem[];
+  total: number;
 }
 
 export interface NotificationsListRequest {

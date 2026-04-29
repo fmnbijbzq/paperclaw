@@ -103,6 +103,119 @@ def test_pipeline_summary_returns_metrics_stages_and_source_health(tmp_path):
     assert sources["openreview"]["fetchedCount"] == 5
 
 
+def test_crawl_runs_endpoint_returns_run_list(tmp_path):
+    _seed_pipeline_state(tmp_path)
+    client = TestClient(
+        create_app(
+            database_url=f"sqlite:///{tmp_path/'papers.db'}",
+            editorial_root=tmp_path / "outputs" / "editorial",
+        )
+    )
+
+    response = client.get("/pipeline/runs/crawl")
+
+    assert response.status_code == 200
+    payload = response.json()
+    items = payload["data"]["items"]
+    assert len(items) == 3
+    assert payload["data"]["total"] == 3
+
+    # Most recent first
+    assert items[0]["source"] == "openreview"
+    assert items[0]["status"] == "failed"
+    assert items[0]["fetchedCount"] == 5
+    assert items[0]["newCount"] == 1
+    assert items[0]["errorMessage"] == "timeout"
+    assert items[0]["durationSeconds"] is not None
+
+    assert items[1]["source"] == "arxiv"
+    assert items[1]["status"] == "success"
+    assert items[1]["fetchedCount"] == 12
+    assert items[1]["newCount"] == 3
+
+    # First run (still running) has no finishedAt
+    assert items[2]["status"] == "running"
+    assert items[2]["finishedAt"] == ""
+    assert items[2]["durationSeconds"] is None
+
+
+def test_crawl_runs_endpoint_filters_by_source(tmp_path):
+    _seed_pipeline_state(tmp_path)
+    client = TestClient(
+        create_app(
+            database_url=f"sqlite:///{tmp_path/'papers.db'}",
+            editorial_root=tmp_path / "outputs" / "editorial",
+        )
+    )
+
+    response = client.get("/pipeline/runs/crawl", params={"source": "arxiv"})
+
+    assert response.status_code == 200
+    items = response.json()["data"]["items"]
+    assert all(item["source"] == "arxiv" for item in items)
+    assert len(items) == 2
+
+
+def test_summarization_runs_endpoint_returns_run_list(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    run1 = db.start_summarization_run()
+    db.finish_summarization_run(run1.run_id, status="success", papers_processed=10, insights_generated=10)
+
+    run2 = db.start_summarization_run()
+    db.finish_summarization_run(run2.run_id, status="failed", papers_processed=5, insights_generated=3, error_message="timeout")
+
+    client = TestClient(
+        create_app(
+            database_url=f"sqlite:///{tmp_path/'papers.db'}",
+            editorial_root=tmp_path / "outputs" / "editorial",
+        )
+    )
+
+    response = client.get("/pipeline/runs/summarization")
+
+    assert response.status_code == 200
+    payload = response.json()
+    items = payload["data"]["items"]
+    assert len(items) == 2
+    assert items[0]["status"] == "failed"
+    assert items[0]["papersProcessed"] == 5
+    assert items[0]["insightsGenerated"] == 3
+    assert items[0]["errorMessage"] == "timeout"
+    assert items[1]["status"] == "success"
+
+
+def test_editorial_runs_endpoint_returns_run_list(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    run1 = db.start_editorial_run()
+    db.finish_editorial_run(run1.run_id, status="success", papers_processed=3, drafts_generated=9)
+
+    run2 = db.start_editorial_run()
+    db.finish_editorial_run(run2.run_id, status="failed", papers_processed=1, drafts_generated=2, error_message="template error")
+
+    client = TestClient(
+        create_app(
+            database_url=f"sqlite:///{tmp_path/'papers.db'}",
+            editorial_root=tmp_path / "outputs" / "editorial",
+        )
+    )
+
+    response = client.get("/pipeline/runs/editorial")
+
+    assert response.status_code == 200
+    payload = response.json()
+    items = payload["data"]["items"]
+    assert len(items) == 2
+    assert items[0]["status"] == "failed"
+    assert items[0]["papersProcessed"] == 1
+    assert items[0]["draftsGenerated"] == 2
+    assert items[0]["errorMessage"] == "template error"
+    assert items[1]["status"] == "success"
+
+
 def test_pipeline_summary_counts_database_backed_drafts_without_filesystem_scan(tmp_path):
     db = Database(f"sqlite:///{tmp_path/'papers.db'}")
     db.create_schema()

@@ -183,3 +183,45 @@ export interface PaperSearchResult {
   totalPages: number;
   appliedQuery: string;
 }
+
+export type RunStatus = "running" | "success" | "failed";
+
+export interface CrawlRunItem {
+  runId: number;
+  source: PaperSource;
+  status: RunStatus;
+  fetchedCount: number;
+  newCount: number;
+  errorMessage: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  durationSeconds: number | null;
+}
+
+export interface SummarizationRunItem {
+  runId: number;
+  status: RunStatus;
+  papersProcessed: number;
+  insightsGenerated: number;
+  errorMessage: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  durationSeconds: number | null;
+}
+
+export interface EditorialRunItem {
+  runId: number;
+  status: RunStatus;
+  papersProcessed: number;
+  draftsGenerated: number;
+  errorMessage: string | null;
+  startedAt: string;
+  finishedAt: string | null;
+  durationSeconds: number | null;
+}
+
+export interface PipelineRunsSnapshot {
+  crawlRuns: CrawlRunItem[];
+  summarizationRuns: SummarizationRunItem[];
+  editorialRuns: EditorialRunItem[];
+}

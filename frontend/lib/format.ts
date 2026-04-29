@@ -74,3 +74,24 @@ export function formatDraftStatus(status: DraftStatus): string {
 export function formatPercent(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
+
+export function formatDuration(seconds: number | null): string {
+  if (seconds === null || seconds === undefined) {
+    return "—";
+  }
+  if (seconds < 60) {
+    return `${Math.round(seconds)}s`;
+  }
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  return `${minutes}m ${remainingSeconds}s`;
+}
+
+export function formatRunStatus(status: string): string {
+  const labels: Record<string, string> = {
+    running: "Running",
+    success: "Success",
+    failed: "Failed",
+  };
+  return labels[status] ?? status;
+}

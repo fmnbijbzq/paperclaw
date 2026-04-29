@@ -9,7 +9,7 @@ from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import Base, CrawlRun, EditorialDraft, ExportRecord, Notification, Paper, PaperInsight, PaperVersion
+from app.models import Base, CrawlRun, EditorialDraft, EditorialRun, ExportRecord, Notification, Paper, PaperInsight, PaperVersion, SummarizationRun
 from app.schemas import PaperRecord
 from app.summarization.schemas import PaperInsightRecord
 from app.utils.time import utc_now
@@ -339,6 +339,80 @@ class Database:
     def count_papers(self) -> int:
         with self._session() as session:
             return session.scalar(select(func.count()).select_from(Paper)) or 0
+
+    def list_crawl_runs(self, *, source: str | None = None, limit: int = 50) -> list[CrawlRun]:
+        stmt = select(CrawlRun).order_by(CrawlRun.run_id.desc())
+        if source is not None:
+            stmt = stmt.where(CrawlRun.source == source)
+        stmt = stmt.limit(limit)
+        with self._session() as session:
+            return list(session.scalars(stmt).all())
+
+    def start_summarization_run(self) -> SummarizationRun:
+        run = SummarizationRun(status="running")
+        with self._session() as session:
+            session.add(run)
+            session.commit()
+            return run
+
+    def finish_summarization_run(
+        self,
+        run_id: int,
+        *,
+        status: str,
+        papers_processed: int = 0,
+        insights_generated: int = 0,
+        error_message: str | None = None,
+    ) -> SummarizationRun:
+        with self._session() as session:
+            run = session.get(SummarizationRun, run_id)
+            if run is None:
+                raise ValueError(f"summarization run {run_id} does not exist")
+            run.status = status
+            run.papers_processed = papers_processed
+            run.insights_generated = insights_generated
+            run.error_message = error_message
+            run.finished_at = run.finished_at or utc_now()
+            session.commit()
+            return run
+
+    def list_summarization_runs(self, *, limit: int = 50) -> list[SummarizationRun]:
+        stmt = select(SummarizationRun).order_by(SummarizationRun.run_id.desc()).limit(limit)
+        with self._session() as session:
+            return list(session.scalars(stmt).all())
+
+    def start_editorial_run(self) -> EditorialRun:
+        run = EditorialRun(status="running")
+        with self._session() as session:
+            session.add(run)
+            session.commit()
+            return run
+
+    def finish_editorial_run(
+        self,
+        run_id: int,
+        *,
+        status: str,
+        papers_processed: int = 0,
+        drafts_generated: int = 0,
+        error_message: str | None = None,
+    ) -> EditorialRun:
+        with self._session() as session:
+            run = session.get(EditorialRun, run_id)
+            if run is None:
+                raise ValueError(f"editorial run {run_id} does not exist")
+            run.status = status
+            run.papers_processed = papers_processed
+            run.drafts_generated = drafts_generated
+            run.error_message = error_message
+            run.finished_at = run.finished_at or utc_now()
+            session.commit()
+            return run
+
+    def list_editorial_runs(self, *, limit: int = 50) -> list[EditorialRun]:
+        stmt = select(EditorialRun).order_by(EditorialRun.run_id.desc()).limit(limit)
+        with self._session() as session:
+            return list(session.scalars(stmt).all())
 
     def _session(self) -> Session:
         return self._session_factory()

@@ -2,9 +2,10 @@ import { ArrowRight, CheckCircle2, Clock3, Sparkles } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
 import { PipelineTimeline } from "@/components/pipeline-timeline";
+import { CrawlRunList, SummarizationRunList, EditorialRunList } from "@/components/run-history";
 import { SectionCard } from "@/components/section-card";
 import { StatusBadge } from "@/components/status-badge";
-import { getDashboardSnapshot } from "@/lib/queries";
+import { getDashboardSnapshot, getPipelineRunsSnapshot } from "@/lib/queries";
 
 const extensionPoints = [
   {
@@ -17,15 +18,13 @@ const extensionPoints = [
     detail: "Track multi-channel publish/export outcomes beyond Feishu bot delivery status.",
     tone: "warning" as const,
   },
-  {
-    title: "Live run inspection",
-    detail: "Add crawl-run and summarization-run telemetry once backend APIs are exposed.",
-    tone: "neutral" as const,
-  },
 ];
 
 export default async function PipelinePage() {
-  const snapshot = await getDashboardSnapshot();
+  const [snapshot, runs] = await Promise.all([
+    getDashboardSnapshot(),
+    getPipelineRunsSnapshot(),
+  ]);
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -52,6 +51,32 @@ export default async function PipelinePage() {
           />
         )}
       </SectionCard>
+
+      <SectionCard
+        eyebrow="Run history"
+        title="Crawl runs"
+        description="Recent crawl execution records showing source, timing, success/failure, and fetch counts."
+      >
+        <CrawlRunList runs={runs.crawlRuns} />
+      </SectionCard>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <SectionCard
+          eyebrow="Run history"
+          title="Summarization runs"
+          description="Tracks how many papers were processed and how many insights were generated per run."
+        >
+          <SummarizationRunList runs={runs.summarizationRuns} />
+        </SectionCard>
+
+        <SectionCard
+          eyebrow="Run history"
+          title="Editorial runs"
+          description="Records editorial draft generation runs with paper and draft counts."
+        >
+          <EditorialRunList runs={runs.editorialRuns} />
+        </SectionCard>
+      </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">
         <SectionCard

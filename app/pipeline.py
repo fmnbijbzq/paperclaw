@@ -38,6 +38,11 @@ def run_pipeline(database_url: str, sources: list, notifier=None, summarizer: Su
     summary = PipelineSummary()
     summarizer = summarizer or SummarizationService()
 
+    # Track summarization run
+    sum_run = db.start_summarization_run()
+    sum_papers_processed = 0
+    sum_insights_generated = 0
+
     # 统计启用的数据源数量
     LOGGER.info(f"开始处理 {len(sources)} 个数据源...")
 
@@ -80,8 +85,11 @@ def run_pipeline(database_url: str, sources: list, notifier=None, summarizer: Su
                     insight = summarizer.generate(normalized)
                     db.upsert_paper_insight(paper_id=result.paper.paper_id, insight=insight)
                     summary.total_insighted += 1
+                    sum_insights_generated += 1
                 except Exception as insight_exc:
                     LOGGER.warning("  论文总结失败 [%s]: %s", normalized.title, insight_exc)
+                finally:
+                    sum_papers_processed += 1
 
             # 完成当前数据源的抓取任务
             db.finish_crawl_run(
@@ -119,6 +127,16 @@ def run_pipeline(database_url: str, sources: list, notifier=None, summarizer: Su
     LOGGER.info(f"所有数据源处理完成：总计获取 {summary.total_fetched} 条，新增 {summary.total_new} 篇论文")
     if summary.failed_sources:
         LOGGER.warning("以下数据源处理失败：%s", summary.failed_sources)
+
+    # Finish summarization run
+    has_sum_failure = bool(summary.failed_sources)
+    db.finish_summarization_run(
+        sum_run.run_id,
+        status="failed" if has_sum_failure else "success",
+        papers_processed=sum_papers_processed,
+        insights_generated=sum_insights_generated,
+        error_message=f"Source failures: {', '.join(summary.failed_sources)}" if has_sum_failure else None,
+    )
 
     if summary.new_papers:
         LOGGER.info("抓取流程结束，本轮新增待发送论文 %s 篇", len(summary.new_papers))

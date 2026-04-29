@@ -21,6 +21,7 @@ import type {
   PaperSearchParams,
   PaperSearchResult,
   PaperSource,
+  PipelineRunsSnapshot,
   DraftStatus,
 } from "./types.ts";
 
@@ -269,5 +270,19 @@ export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {
     editorialDrafts,
     pipelineStages,
     notifications,
+  };
+}
+
+export async function getPipelineRunsSnapshot(): Promise<PipelineRunsSnapshot> {
+  const [crawlRuns, summarizationRuns, editorialRuns] = await Promise.all([
+    pipelineRepository.listCrawlRuns(),
+    pipelineRepository.listSummarizationRuns(),
+    pipelineRepository.listEditorialRuns(),
+  ]);
+
+  return {
+    crawlRuns,
+    summarizationRuns,
+    editorialRuns,
   };
 }

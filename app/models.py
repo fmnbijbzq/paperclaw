@@ -161,6 +161,30 @@ class EditorialDraft(Base):
     )
 
 
+class SummarizationRun(Base):
+    __tablename__ = "summarization_runs"
+
+    run_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    status: Mapped[str] = mapped_column(String(50), default="running", nullable=False)
+    papers_processed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    insights_generated: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class EditorialRun(Base):
+    __tablename__ = "editorial_runs"
+
+    run_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    status: Mapped[str] = mapped_column(String(50), default="running", nullable=False)
+    papers_processed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    drafts_generated: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class ExportRecord(Base):
     __tablename__ = "export_records"
 
