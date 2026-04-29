@@ -1,119 +1,122 @@
-# Paperclaw Frontend Companion
+# Paperclaw Frontend
 
-Standalone Next.js companion console for the Paperclaw backend. The app uses realistic demo data shaped around the backend domain entities in `app/models.py`, `app/editorial/pipeline.py`, `app/publish/exporter.py`, and `run_notify_once.py`.
+Next.js 15 dashboard for browsing papers, editorial drafts, pipeline status, and export records.
 
-## Stack
+## Prerequisites
 
-- Next.js App Router
-- React
-- TypeScript
-- Tailwind CSS
-- Lucide React
+- **Node.js** >= 18
+- **npm** (comes with Node.js)
 
-## Architecture
-
-The frontend is still demo-data backed by default, but the app now routes data through an explicit contract, runtime config, and repository boundary so a future live backend can replace only the data-source layer.
-
-- `frontend/lib/api-contracts.ts`
-  Frontend-facing request/response contracts for future papers, paper detail, pipeline, and notifications endpoints.
-- `frontend/lib/runtime-config.ts`
-  Runtime mode resolution for `demo` vs `http`, plus the optional API base URL.
-- `frontend/lib/data-sources/index.ts`
-  Central resolver that selects demo or HTTP-backed data sources from the runtime config.
-- `frontend/lib/data-sources/demo/*.ts`
-  The active demo data source implementations. These read the current in-repo fixtures and expose async methods shaped like future HTTP-backed data sources.
-- `frontend/lib/data-sources/http/*.ts`
-  HTTP skeletons for papers, notifications, and pipeline data. These unwrap API envelopes and map them into the existing repository-facing shapes.
-- `frontend/lib/repositories/*.ts`
-  Domain repositories for papers, notifications, and pipeline data. They provide stable access patterns for sorting, lookups, and repository-level composition.
-- `frontend/lib/queries.ts`
-  Page-facing query composition. This is where repositories are joined into dashboard snapshots, paper records, and notification feeds for the route layer.
-- `frontend/lib/demo-data.ts`
-  Raw demo fixtures only. Route components and high-level queries should not depend on these arrays directly.
-
-## Data flow
-
-Current path:
-
-`runtime-config.ts` -> `data-sources/index.ts` -> `data-sources/demo/*` -> `repositories/*` -> `queries.ts` -> `app/*`
-
-Future live path:
-
-`runtime-config.ts` -> `data-sources/index.ts` -> `data-sources/http/*` -> `repositories/*` -> `queries.ts` -> `app/*`
-
-That keeps the page and component layer stable when the backend integration arrives.
-
-## Runtime modes
-
-The repository and query layers keep the page APIs unchanged while switching the underlying data source at one boundary.
-
-- `demo`
-  Default mode. No backend required. Repositories resolve the existing in-repo fixture-backed data sources.
-- `http`
-  Future backend mode. Repositories resolve lightweight HTTP data source skeletons that expect JSON API envelopes and map them back into the current repository-facing types.
-
-Because the data access stays in the server-side repository layer, the mode is configured with server environment variables:
-
-```bash
-PAPERCLAW_DATA_SOURCE=demo
-PAPERCLAW_API_BASE_URL=https://paperclaw.example/api
-```
-
-Behavior notes:
-
-- If `PAPERCLAW_DATA_SOURCE` is unset or unsupported, the frontend safely falls back to `demo`.
-- `PAPERCLAW_API_BASE_URL` is only required when `PAPERCLAW_DATA_SOURCE=http`.
-- Tests do not require a live backend. The HTTP layer is exercised with injected fetch-style fixtures.
-
-Current HTTP endpoint assumptions:
-
-- `GET /papers`
-- `GET /papers/insights`
-- `GET /papers/editorial-drafts`
-- `GET /notifications`
-- `GET /pipeline/summary`
-
-These are intentionally thin skeleton assumptions so live backend wiring can be added later without changing the route, query, or repository consumers.
-
-## Install
+## Quick Start
 
 ```bash
 cd frontend
 npm install
-```
-
-## Run
-
-```bash
-cd frontend
 npm run dev
 ```
 
-Open `http://localhost:3000`.
+The dev server starts at **http://localhost:3000** by default.
 
-## Build
+## Available Scripts
+
+| Command           | Purpose                                                       |
+| ----------------- | ------------------------------------------------------------- |
+| `npm run dev`     | Start the Next.js dev server with hot-reload                  |
+| `npm run build`   | Create an optimised production build (output in `.next/`)     |
+| `npm run start`   | Serve the production build (run `build` first)                |
+| `npm run lint`    | Run ESLint with zero-warning policy                           |
+| `npm run test`    | Run frontend unit tests                                       |
+| `npm run clean`   | Delete the `.next` cache directory (see cache management)     |
+
+### Development vs Production
 
 ```bash
-cd frontend
+# Development (hot-reload, source maps)
+npm run dev
+
+# Production (build once, then serve)
 npm run build
+npm run start          # serves on http://localhost:3000
 ```
 
-## Lint
+## Environment Variables
+
+The frontend reads its data source configuration from the browser at runtime.
+By default it uses the **demo** data source (no backend required).
+
+To connect to the live backend API, set the following environment variable
+before building or running:
 
 ```bash
-cd frontend
-npm run lint
+# .env.local (in the frontend/ directory)
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
-## Notes
+When `NEXT_PUBLIC_API_BASE_URL` is not set the app falls back to demo data,
+so you can explore the UI without the Python backend running.
 
-- The frontend is intentionally standalone and remains in `demo` mode by default.
-- Demo data is still the active source of truth unless `PAPERCLAW_DATA_SOURCE=http` is explicitly configured.
-- Route-level loading UI lives in `frontend/app/**/loading.tsx`.
-- App-level recovery UI lives in `frontend/app/error.tsx` and `frontend/components/error-panel.tsx`.
-- Route structure:
-  - `/`
-  - `/papers`
-  - `/papers/[paperId]`
-  - `/pipeline`
-  - `/notifications`
+## Cache Management (`.next` directory)
+
+Next.js caches compiled pages and chunks in the `.next/` directory.  
+Occasionally stale cache can cause build errors or unexpected behaviour.
+
+### When to clean
+
+- You pull new code and `npm run dev` shows stale pages
+- `npm run build` fails with cryptic module-resolution errors
+- You switch branches with significantly different page structures
+
+### How to clean
+
+```bash
+# Using the provided script
+npm run clean
+
+# Or manually
+rm -rf .next
+```
+
+Then restart the dev server or re-build:
+
+```bash
+npm run dev    # for development
+npm run build  # for production
+```
+
+### Full clean start
+
+If you want a completely fresh environment (including dependencies):
+
+```bash
+rm -rf node_modules .next
+npm install
+npm run dev
+```
+
+## Project Structure
+
+```
+frontend/
+├── app/                  # Next.js App Router pages
+│   ├── drafts/           # Editorial drafts list & detail
+│   ├── exports/          # Export records
+│   ├── papers/           # Paper browser
+│   └── pipeline/         # Pipeline overview
+├── components/           # Shared React components
+├── lib/
+│   ├── data-sources/     # Data adapters (http/, demo/)
+│   ├── repositories/     # Data-access layer
+│   ├── api-contracts.ts  # Shared API types & envelope helpers
+│   └── types.ts          # Domain types
+├── tests/                # Frontend unit tests
+└── package.json
+```
+
+## Troubleshooting
+
+| Problem                            | Fix                                            |
+| ---------------------------------- | ---------------------------------------------- |
+| Port 3000 already in use           | `npx next dev -p 3001` (or any free port)      |
+| Stale pages after pulling code     | `npm run clean && npm run dev`                 |
+| Build fails after branch switch    | `rm -rf node_modules .next && npm install`     |
+| "Module not found" in dev mode     | Restart the dev server; if persistent, clean   |

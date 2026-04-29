@@ -1,153 +1,295 @@
 # Paperclaw
 
-AI vision paper crawler for collecting AI vision papers from arXiv/OpenReview/CVF, storing them locally, and generating Feishu-ready + social-ready content artifacts.
+AI vision paper crawler that collects papers from arXiv, OpenReview, and CVF,
+stores them in a local database, generates structured insights, and delivers
+Feishu notifications.
 
-## Setup
+Includes a **Next.js dashboard** for browsing papers, editorial drafts, pipeline
+status, and export records.
 
-Use the `paperclaw` conda environment, then install the project dependencies:
+---
+
+## Table of Contents
+
+- [Prerequisites](#prerequisites)
+- [Project Structure](#project-structure)
+- [Backend Setup](#backend-setup)
+- [Frontend Setup](#frontend-setup)
+- [Running the Full Stack](#running-the-full-stack)
+- [Testing](#testing)
+- [Content Pipeline](#content-pipeline)
+- [Notification Behaviour](#notification-behaviour)
+- [Cron Deployment](#cron-deployment)
+- [Logs](#logs)
+- [Troubleshooting](#troubleshooting)
+
+---
+
+## Prerequisites
+
+| Tool          | Version  | Purpose                         |
+| ------------- | -------- | ------------------------------- |
+| Python        | >= 3.12  | Backend / crawler               |
+| conda / uv    | recent   | Python environment management   |
+| Node.js       | >= 18    | Frontend dashboard              |
+| npm           | latest   | Frontend package manager        |
+
+---
+
+## Project Structure
 
 ```
+paperclaw/
+├── app/                  # Python backend (FastAPI + crawler pipeline)
+│   ├── api/              # FastAPI REST API
+│   ├── sources/          # arXiv / OpenReview / CVF adapters
+│   ├── editorial/        # Content composition
+│   └── notifiers/        # Feishu bot
+├── frontend/             # Next.js 15 dashboard (see frontend/README.md)
+├── config/               # YAML source configuration
+├── scripts/              # Helper scripts
+├── tests/                # Python backend tests
+├── outputs/              # Generated content (editorial drafts, exports)
+├── run_once.py           # Single-execution crawler entry point
+├── run_notify_once.py    # Single-execution notification sender
+└── pyproject.toml        # Python project metadata
+```
+
+---
+
+## Backend Setup
+
+### 1. Create the Python environment
+
+Using **conda**:
+
+```bash
 conda run -n paperclaw python -m pip install -e .[dev]
 ```
 
-If you prefer `uv` in this repo:
+Or using **uv**:
 
-```
+```bash
 uv sync --extra dev
 ```
 
-## Configuration
+### 2. Configure environment variables
 
-1. Copy `.env.example` to `.env`
-2. Set `DATABASE_URL`
-3. Set `FEISHU_BOT_WEBHOOK` if you want Feishu notifications
-4. Set `FEISHU_BOT_SECRET` as well if your Feishu bot has signature verification enabled
-5. Set `MAX_NOTIFY_ITEMS` to control how many pending papers are processed and sent in each notification cycle
-6. Adjust `LOG_LEVEL`, `TIMEZONE`, `LOG_FILE`, and `LOG_INCLUDE_LOCATION` as needed
+Copy the example env file and edit it:
 
-Edit `config/sources.yaml` to enable or tune sources such as:
+```bash
+cp .env.example .env   # if .env.example exists, otherwise create .env
+```
+
+| Variable                | Description                                        | Default          |
+| ----------------------- | -------------------------------------------------- | ---------------- |
+| `DATABASE_URL`          | SQLite path, e.g. `sqlite:///data/papers.db`       | *(required)*     |
+| `FEISHU_BOT_WEBHOOK`    | Feishu webhook URL                                 | *(optional)*     |
+| `FEISHU_BOT_SECRET`     | HMAC secret for Feishu signature verification      | *(optional)*     |
+| `MAX_NOTIFY_ITEMS`      | Max papers per Feishu notification                 | `10`             |
+| `LOG_LEVEL`             | Logging level                                      | `INFO`           |
+| `TIMEZONE`              | IANA timezone                                      | `Asia/Shanghai`  |
+| `LOG_FILE`              | Path to persist logs                               | *(optional)*     |
+
+Edit `config/sources.yaml` to tune source settings:
 
 - arXiv categories
 - OpenReview venue filters
-- CVF conferences (CVPR/ICCV/ECCV)
-- per-source lookback windows
+- CVF conferences (CVPR / ICCV / ECCV)
+- Per-source lookback windows
 
-## Manual Run
+### 3. Initialize the database
 
-From the repository root:
+The database schema is created automatically on first run. To initialise
+manually without fetching papers:
 
+```bash
+python -c "from app.storage import Database; import os; Database(os.environ.get('DATABASE_URL', 'sqlite:///data/papers.db')).create_schema()"
 ```
+
+### 4. Run the backend
+
+#### Crawler pipeline (single execution)
+
+```bash
 conda run -n paperclaw python run_once.py
 ```
 
-This command fetches papers, stores them, and generates per-paper structured insights (`paper_insights`).
+This fetches papers from all enabled sources, upserts them into the database,
+and generates per-paper structured insights.
 
-To run one notification cycle manually:
+#### Notification cycle
 
-```
+```bash
 conda run -n paperclaw python run_notify_once.py
 ```
 
-`run_notify_once.py` scans papers that have not yet been successfully delivered to Feishu, sends up to `MAX_NOTIFY_ITEMS` papers in one combined Feishu message, and writes one record per paper attempt into the `notifications` table. Successful attempts are marked with `success=true`; failed attempts are kept for retry in the next cycle.
+Sends up to `MAX_NOTIFY_ITEMS` pending papers in one combined Feishu message.
 
-## Content Pipeline (new)
+#### REST API server
 
-Generate platform drafts (bilibili/xiaohongshu/douyin):
-
-```
-python scripts/run_content_pipeline.py --limit 3
+```bash
+conda run -n paperclaw uvicorn app.api.app:create_app --factory --reload
 ```
 
-`run_content_pipeline.py` reads `DATABASE_URL` from the active `.env` (current working directory first, then repo root), and by default writes drafts under the current working directory. Use `--base-dir /path/to/runtime-root` if you want to target a specific runtime root explicitly.
+The API starts at **http://localhost:8000** by default.  
+Visit **http://localhost:8000/docs** for the interactive Swagger UI.
 
-This writes markdown drafts under:
+---
 
-```
-outputs/editorial/YYYY-MM-DD/
-```
+## Frontend Setup
 
-Export reviewed/selected drafts to publish package folder:
+See **[frontend/README.md](frontend/README.md)** for full details.
 
-```
-python scripts/export_for_publish.py --date YYYY-MM-DD
-```
+### Quick start
 
-Export only one platform's draft files when needed:
-
-```
-python scripts/export_for_publish.py --date YYYY-MM-DD --platform bilibili
+```bash
+cd frontend
+npm install
+npm run dev
 ```
 
-This filters files like `bilibili-*.md` from that date's editorial directory.
+The dashboard starts at **http://localhost:3000**.
 
-Use `--base-dir /path/to/runtime-root` if your `outputs/` directory lives outside the repository checkout.
+### Available npm scripts
 
-This exports to:
+| Script            | Purpose                                  |
+| ----------------- | ---------------------------------------- |
+| `npm run dev`     | Dev server with hot-reload               |
+| `npm run build`   | Production build                         |
+| `npm run start`   | Serve production build                   |
+| `npm run lint`    | ESLint (zero warnings)                   |
+| `npm run test`    | Unit tests                               |
+| `npm run clean`   | Delete `.next` cache directory           |
 
+### Connecting to the backend
+
+Create `frontend/.env.local`:
+
+```bash
+NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
-outputs/exported/YYYY-MM-DD/
+
+Without this variable the frontend uses demo data (no backend required).
+
+---
+
+## Running the Full Stack
+
+Open **two terminals** from the repository root:
+
+```bash
+# Terminal 1 — Backend API
+conda run -n paperclaw uvicorn app.api.app:create_app --factory --reload
+
+# Terminal 2 — Frontend dashboard
+cd frontend && npm run dev
 ```
 
-## Workflow: fetch -> insight -> editorial -> export
+Then open **http://localhost:3000**.
 
-1. `python run_once.py` (fetch + upsert + insight)
-2. `python scripts/run_content_pipeline.py --limit N` (compose platform drafts)
-3. Human review drafts in `outputs/editorial/YYYY-MM-DD/`
-4. `python scripts/export_for_publish.py --date YYYY-MM-DD` (export package)
+---
 
-## Notification Behavior
+## Testing
 
-- Each cycle sends one combined Feishu message containing up to `MAX_NOTIFY_ITEMS` papers
-- Each send attempt is persisted in `notifications`
-- A paper is considered pending until it has at least one successful notification record for destination `feishu`
-- Failed attempts remain retryable in the next sender cycle
+### Backend tests
 
-## Logs
+```bash
+conda run -n paperclaw python -m pytest tests/ -q
+```
 
-- Fetch logs show which source was scanned, how many papers were fetched, and whether each paper was inserted as new or already existed
-- Insight logs show whether summary generation succeeded per paper
-- Notification logs show which papers were picked for the current cycle and whether each send attempt succeeded or failed
-- If `LOG_FILE` is configured, fetch/insight/notification logs can be persisted to disk
+Run specific test files:
+
+```bash
+conda run -n paperclaw python -m pytest tests/test_pipeline.py -q
+```
+
+Run the live Feishu integration test:
+
+```bash
+FEISHU_BOT_WEBHOOK='https://open.feishu.cn/open-apis/bot/v2/hook/xxxx' \
+  conda run -n paperclaw python -m pytest -q -m integration
+```
+
+### Frontend tests
+
+```bash
+cd frontend
+npm run test
+```
+
+---
+
+## Content Pipeline
+
+1. **Fetch + store + generate insights:**
+   ```bash
+   python run_once.py
+   ```
+
+2. **Compose platform drafts** (bilibili / xiaohongshu / douyin):
+   ```bash
+   python scripts/run_content_pipeline.py --limit 3
+   ```
+   Drafts are written to `outputs/editorial/YYYY-MM-DD/`.
+
+3. **Human review** — edit the drafts in `outputs/editorial/YYYY-MM-DD/`.
+
+4. **Export for publishing:**
+   ```bash
+   python scripts/export_for_publish.py --date YYYY-MM-DD
+   ```
+   Exports to `outputs/exported/YYYY-MM-DD/`.
+
+---
+
+## Notification Behaviour
+
+- Each cycle sends one combined Feishu message containing up to
+  `MAX_NOTIFY_ITEMS` papers.
+- Each send attempt is persisted in the `notifications` table.
+- A paper is considered pending until it has at least one successful
+  notification record for destination `feishu`.
+- Failed attempts remain retryable in the next cycle.
+
+---
 
 ## Cron Deployment
 
-Example cron file: `scripts/setup_cron.example`
+Example cron entries (see `scripts/setup_cron.example`):
 
-Example install command:
-
-```
-crontab scripts/setup_cron.example
-```
-
-Example cron entries:
-
-```
+```bash
+# Fetch papers at 08:00 daily
 0 8 * * * cd /root/workspace/paperclaw && /root/miniconda3/bin/conda run -n paperclaw python run_once.py >> logs/fetch.log 2>&1
+
+# Send pending notifications every 10 minutes
 */10 * * * * cd /root/workspace/paperclaw && /root/miniconda3/bin/conda run -n paperclaw python run_notify_once.py >> logs/notify.log 2>&1
 ```
 
-## Running the tests
+Install:
 
-From the repository root:
-
-```
-conda run -n paperclaw python -m pytest tests/test_run_once.py tests/test_pipeline.py tests/test_feishu_bot.py tests/test_notification_pipeline.py tests/test_run_notify_once.py -q
+```bash
+crontab scripts/setup_cron.example
 ```
 
-To run the newly added focused tests:
+---
 
-```
-pytest tests/test_cvf_source.py tests/test_summarization_service.py tests/test_editorial_composer.py -q
-```
+## Logs
 
-To run the live Feishu webhook integration test explicitly:
+- **Fetch logs** — which source was scanned, how many papers fetched
+- **Insight logs** — whether summary generation succeeded per paper
+- **Notification logs** — which papers were picked and send success/failure
+- If `LOG_FILE` is configured, logs persist to disk
 
-```
-FEISHU_BOT_WEBHOOK='https://open.feishu.cn/open-apis/bot/v2/hook/xxxx' conda run -n paperclaw python -m pytest -q -m integration
-```
+---
 
-To send a one-off webhook smoke test without running the full pipeline:
+## Troubleshooting
 
-```
-FEISHU_BOT_WEBHOOK='https://open.feishu.cn/open-apis/bot/v2/hook/xxxx' conda run -n paperclaw python scripts/send_test_feishu_message.py
-```
+| Problem                              | Fix                                                        |
+| ------------------------------------ | ---------------------------------------------------------- |
+| Frontend shows stale pages           | `cd frontend && npm run clean && npm run dev`              |
+| `npm run build` fails in frontend    | `rm -rf frontend/node_modules frontend/.next && cd frontend && npm install` |
+| Port 3000 in use                     | `npx next dev -p 3001` (in `frontend/`)                   |
+| Port 8000 in use                     | `uvicorn app.api.app:create_app --factory --port 8001`     |
+| Database locked errors               | Ensure only one crawler process runs at a time             |
+| Feishu messages not sending          | Check `FEISHU_BOT_WEBHOOK` in `.env`                       |
