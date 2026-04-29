@@ -3,15 +3,21 @@ import { resolveRuntimeConfig } from "../runtime-config.ts";
 import { demoNotificationsDataSource, type NotificationsDataSource } from "./demo/notifications.ts";
 import { demoPapersDataSource, type PapersDataSource } from "./demo/papers.ts";
 import { demoPipelineDataSource, type PipelineDataSource } from "./demo/pipeline.ts";
+import { demoDraftsDataSource, type DraftsDataSource } from "./demo/drafts.ts";
+import { demoExportsDataSource, type ExportsDataSource } from "./demo/exports.ts";
 import { createHttpNotificationsDataSource } from "./http/notifications.ts";
 import { createHttpPapersDataSource } from "./http/papers.ts";
 import { createHttpPipelineDataSource } from "./http/pipeline.ts";
+import { createHttpDraftsDataSource } from "./http/drafts.ts";
+import { createHttpExportsDataSource } from "./http/exports.ts";
 import type { FetchLike } from "./http/shared.ts";
 
 export interface ResolvedDataSources {
   papers: PapersDataSource;
   notifications: NotificationsDataSource;
   pipeline: PipelineDataSource;
+  drafts: DraftsDataSource;
+  exports: ExportsDataSource;
 }
 
 interface ResolveDataSourcesOptions {
@@ -46,6 +52,14 @@ export function resolveDataSources(
         baseUrl,
         fetch: options.fetch,
       }),
+      drafts: createHttpDraftsDataSource({
+        baseUrl,
+        fetch: options.fetch,
+      }),
+      exports: createHttpExportsDataSource({
+        baseUrl,
+        fetch: options.fetch,
+      }),
     };
   }
 
@@ -53,6 +67,8 @@ export function resolveDataSources(
     papers: demoPapersDataSource,
     notifications: demoNotificationsDataSource,
     pipeline: demoPipelineDataSource,
+    drafts: demoDraftsDataSource,
+    exports: demoExportsDataSource,
   };
 }
 

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { createApiEnvelope, type EditorialDraftsResponse, type PaperInsightsResponse } from "../lib/api-contracts.ts";
+import { createHttpDraftsDataSource } from "../lib/data-sources/http/drafts.ts";
+import { createHttpExportsDataSource } from "../lib/data-sources/http/exports.ts";
 import { createHttpNotificationsDataSource } from "../lib/data-sources/http/notifications.ts";
 import { createHttpPapersDataSource } from "../lib/data-sources/http/papers.ts";
 import { buildRequestUrl, type FetchLike } from "../lib/data-sources/http/shared.ts";
@@ -9,19 +11,41 @@ import { createHttpPipelineDataSource } from "../lib/data-sources/http/pipeline.
 
 interface MockRoute {
   body: unknown;
+  method?: string;
   status?: number;
 }
 
-function createFetchStub(routes: Record<string, MockRoute>): { calls: string[]; fetch: FetchLike } {
+function createFetchStub(
+  routes: Record<string, MockRoute>,
+): {
+  calls: string[];
+  fetch: FetchLike;
+  requests: Array<{
+    body?: string;
+    method: string;
+    url: string;
+  }>;
+} {
   const calls: string[] = [];
+  const requests: Array<{
+    body?: string;
+    method: string;
+    url: string;
+  }> = [];
 
   return {
     calls,
+    requests,
     fetch: async (input) => {
       const url = String(input);
-      const route = routes[url];
+      const method = "GET";
+      const route = routes[`${method} ${url}`] ?? routes[url];
 
       calls.push(url);
+      requests.push({
+        method,
+        url,
+      });
 
       if (!route) {
         throw new Error(`Unexpected request: ${url}`);
@@ -253,4 +277,247 @@ test("HTTP data sources reject malformed API envelopes", async () => {
   });
 
   await assert.rejects(() => dataSource.listNotifications(), /Invalid API envelope/i);
+});
+
+test("HTTP papers data source forwards advanced search filters and pagination", async () => {
+  const { calls, fetch } = createFetchStub({
+    "GET https://paperclaw.example/api/papers?q=graph&source=openreview&category=agents&venue=ICLR%202026&hasInsight=true&hasDraft=false&limit=25&offset=25":
+      {
+        body: createApiEnvelope({
+          items: [
+            {
+              paper: {
+                paperId: 21,
+                sourcePaperId: "or-iclr26-graph-executor",
+                title: "Structured review loops for paper operations",
+                abstract: "Advanced search fixture.",
+                authors: ["A. Researcher"],
+                source: "openreview",
+                venue: "ICLR 2026",
+                categories: ["agents"],
+                paperUrl: "https://example.com/papers/21",
+                pdfUrl: "https://example.com/papers/21.pdf",
+                publishedAt: "2026-04-28T08:00:00Z",
+                updatedAtSource: "2026-04-28T08:00:00Z",
+              },
+              insight: {
+                insightId: 4,
+                summaryShort: "Reasoning traces increase operator confidence.",
+                confidenceScore: 0.97,
+                updatedAt: "2026-04-28T09:00:00Z",
+              },
+              notificationSummary: {
+                totalAttempts: 1,
+                latestStatus: "delivered",
+                lastSentAt: "2026-04-28T09:10:00Z",
+              },
+              editorialDraftCount: 2,
+            },
+          ],
+          total: 41,
+          appliedQuery: "graph",
+        }),
+      },
+  });
+  const dataSource = createHttpPapersDataSource({
+    baseUrl: "https://paperclaw.example/api/",
+    fetch,
+  });
+
+  const result = await dataSource.searchPapers({
+    q: "graph",
+    source: "openreview",
+    category: "agents",
+    venue: "ICLR 2026",
+    hasInsight: true,
+    hasDraft: false,
+    page: 2,
+    pageSize: 25,
+  });
+
+  assert.equal(result.total, 41);
+  assert.equal(result.items[0]?.paperId, 21);
+  assert.deepEqual(calls, [
+    "https://paperclaw.example/api/papers?q=graph&source=openreview&category=agents&venue=ICLR%202026&hasInsight=true&hasDraft=false&limit=25&offset=25",
+  ]);
+});
+
+test("HTTP drafts and exports data sources map detail payloads and workflow actions", async () => {
+  const requests: Array<{
+    body?: string;
+    method: string;
+    url: string;
+  }> = [];
+  const fetch: FetchLike = async (input, init) => {
+    const url = String(input);
+    const method = init?.method?.toUpperCase() ?? "GET";
+    const body = typeof init?.body === "string" ? init.body : undefined;
+
+    requests.push({
+      body,
+      method,
+      url,
+    });
+
+    const routes: Record<string, unknown> = {
+      "GET https://paperclaw.example/api/drafts?status=approved&platform=bilibili&limit=5": createApiEnvelope<EditorialDraftsResponse>({
+        items: [
+          {
+            draftId: "draft-21-a",
+            paperId: 21,
+            platform: "bilibili",
+            title: "Review loop summary",
+            hook: "Why visibility matters",
+            status: "approved",
+            assignee: "Nina",
+            updatedAt: "2026-04-28T09:20:00Z",
+            outputPath: "outputs/draft-21-a.md",
+          },
+        ],
+        total: 1,
+      }),
+      "GET https://paperclaw.example/api/drafts/draft-21-a": createApiEnvelope({
+        draftId: "draft-21-a",
+        paperId: 21,
+        platform: "bilibili",
+        title: "Review loop summary",
+        hook: "Why visibility matters",
+        status: "approved",
+        assignee: "Nina",
+        updatedAt: "2026-04-28T09:20:00Z",
+        outputPath: "outputs/draft-21-a.md",
+        markdownContent: "# Review loop summary",
+        reviewNote: "Approved for export.",
+        paper: {
+          paperId: 21,
+          sourcePaperId: "or-iclr26-graph-executor",
+          title: "Structured review loops for paper operations",
+          abstract: "Advanced search fixture.",
+          authors: ["A. Researcher"],
+          source: "openreview",
+          venue: "ICLR 2026",
+          categories: ["agents"],
+          paperUrl: "https://example.com/papers/21",
+          pdfUrl: "https://example.com/papers/21.pdf",
+          publishedAt: "2026-04-28T08:00:00Z",
+          updatedAtSource: "2026-04-28T08:00:00Z",
+        },
+      }),
+      "POST https://paperclaw.example/api/drafts/draft-21-a/review": createApiEnvelope({
+        draftId: "draft-21-a",
+        paperId: 21,
+        platform: "bilibili",
+        title: "Review loop summary",
+        hook: "Why visibility matters",
+        status: "in_review",
+        assignee: "Nina",
+        updatedAt: "2026-04-28T09:35:00Z",
+        outputPath: "outputs/draft-21-a.md",
+        markdownContent: "# Review loop summary",
+        reviewNote: "Ready for human review.",
+        paper: {
+          paperId: 21,
+          sourcePaperId: "or-iclr26-graph-executor",
+          title: "Structured review loops for paper operations",
+          abstract: "Advanced search fixture.",
+          authors: ["A. Researcher"],
+          source: "openreview",
+          venue: "ICLR 2026",
+          categories: ["agents"],
+          paperUrl: "https://example.com/papers/21",
+          pdfUrl: "https://example.com/papers/21.pdf",
+          publishedAt: "2026-04-28T08:00:00Z",
+          updatedAtSource: "2026-04-28T08:00:00Z",
+        },
+      }),
+      "POST https://paperclaw.example/api/drafts/draft-21-a/export": createApiEnvelope({
+        exportId: 14,
+        draftId: "draft-21-a",
+        exportedBy: "ops-bot",
+        success: true,
+        sourcePath: "outputs/draft-21-a.md",
+        destinationPath: "outputs/exported/draft-21-a.md",
+        errorMessage: null,
+        createdAt: "2026-04-28T09:40:00Z",
+      }),
+      "GET https://paperclaw.example/api/exports": createApiEnvelope({
+        items: [
+          {
+            exportId: 14,
+            draftId: "draft-21-a",
+            exportedBy: "ops-bot",
+            success: true,
+            sourcePath: "outputs/draft-21-a.md",
+            destinationPath: "outputs/exported/draft-21-a.md",
+            errorMessage: null,
+            createdAt: "2026-04-28T09:40:00Z",
+          },
+        ],
+        total: 1,
+      }),
+    };
+
+    const routeKey = `${method} ${url}`;
+    const route = routes[routeKey];
+
+    if (!route) {
+      throw new Error(`Unexpected request: ${routeKey}`);
+    }
+
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return route;
+      },
+    };
+  };
+  const draftsDataSource = createHttpDraftsDataSource({
+    baseUrl: "https://paperclaw.example/api",
+    fetch,
+  });
+  const exportsDataSource = createHttpExportsDataSource({
+    baseUrl: "https://paperclaw.example/api",
+    fetch,
+  });
+
+  const [drafts, detail, reviewedDraft, exportRecord, exportRecords] = await Promise.all([
+    draftsDataSource.listDrafts({
+      status: "approved",
+      platform: "bilibili",
+      limit: 5,
+    }),
+    draftsDataSource.getDraftDetail("draft-21-a"),
+    draftsDataSource.reviewDraft("draft-21-a", {
+      actor: "editor-1",
+      note: "Ready for human review.",
+    }),
+    draftsDataSource.exportDraft("draft-21-a", {
+      exportedBy: "ops-bot",
+    }),
+    exportsDataSource.listExportRecords(),
+  ]);
+
+  assert.equal(drafts[0]?.draftId, "draft-21-a");
+  assert.equal(detail?.paper.paperId, 21);
+  assert.equal(reviewedDraft.status, "in_review");
+  assert.equal(exportRecord.exportId, 14);
+  assert.equal(exportRecords[0]?.draftId, "draft-21-a");
+  assert.deepEqual(
+    requests.map(({ method, url }) => `${method} ${url}`),
+    [
+      "GET https://paperclaw.example/api/drafts?status=approved&platform=bilibili&limit=5",
+      "GET https://paperclaw.example/api/drafts/draft-21-a",
+      "POST https://paperclaw.example/api/drafts/draft-21-a/review",
+      "POST https://paperclaw.example/api/drafts/draft-21-a/export",
+      "GET https://paperclaw.example/api/exports",
+    ],
+  );
+  assert.deepEqual(JSON.parse(requests[2]?.body ?? "{}"), {
+    actor: "editor-1",
+    note: "Ready for human review.",
+  });
+  assert.deepEqual(JSON.parse(requests[3]?.body ?? "{}"), {
+    exportedBy: "ops-bot",
+  });
 });

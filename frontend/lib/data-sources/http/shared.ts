@@ -31,7 +31,7 @@ function resolveFetch(fetchImplementation?: FetchLike): FetchLike {
 
 export function buildRequestUrl(baseUrl: string, path: string, query: HttpQueryParams = {}): string {
   const normalizedBaseUrl = `${baseUrl.replace(/\/+$/, "")}/`;
-  const normalizedPath = path.replace(/^\/+/, "");
+  const normalizedPath = path.replace(/^\//, "");
   const url = new URL(normalizedPath, normalizedBaseUrl);
 
   for (const [key, value] of Object.entries(query)) {
@@ -42,13 +42,17 @@ export function buildRequestUrl(baseUrl: string, path: string, query: HttpQueryP
     url.searchParams.set(key, String(value));
   }
 
-  return url.toString();
+  // Use %20 for spaces instead of +
+  return url.toString().replace(/\+/g, "%20");
 }
 
 export function createHttpClient(options: HttpDataSourceOptions) {
   const fetchImplementation = resolveFetch(options.fetch);
 
   return {
+    buildUrl(path: string, query?: HttpQueryParams): string {
+      return buildRequestUrl(options.baseUrl, path, query);
+    },
     async get<TData>(path: string, query?: HttpQueryParams): Promise<TData> {
       const requestUrl = buildRequestUrl(options.baseUrl, path, query);
       const response = await fetchImplementation(requestUrl, {

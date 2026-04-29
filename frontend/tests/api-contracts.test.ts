@@ -5,6 +5,10 @@ import {
   API_SCHEMA_VERSION,
   createApiEnvelope,
   createApiMeta,
+  type EditorialDraftDetailResponse,
+  type EditorialDraftsResponse,
+  type ExportActionResponse,
+  type ExportRecordsResponse,
   type NotificationFeedResponse,
   type PaperDetailResponse,
   type PapersListResponse,
@@ -91,4 +95,63 @@ test("paper detail, pipeline, and notification contracts cover the current front
     "editorialDrafts",
   ]);
   assert.equal(notificationResponse.total, 0);
+});
+
+test("draft and export contracts cover operational workflow pages", () => {
+  const draftsResponse: EditorialDraftsResponse = {
+    items: [
+      {
+        draftId: "draft-42-a",
+        paperId: 42,
+        platform: "bilibili",
+        title: "Paper ops recap",
+        hook: "Why review state needs to stay explicit.",
+        status: "approved",
+        assignee: "A. Editor",
+        updatedAt: "2026-04-28T12:00:00Z",
+        outputPath: "outputs/editorial/2026-04-28/paper-ops-recap.md",
+      },
+    ],
+    total: 1,
+  };
+  const draftDetailResponse: EditorialDraftDetailResponse = {
+    ...draftsResponse.items[0]!,
+    markdownContent: "# Paper ops recap\n\n- Review\n- Approve\n- Export",
+    reviewNote: "Ready for publishing.",
+    paper: {
+      paperId: 42,
+      sourcePaperId: "arxiv-2404.0042",
+      title: "Graph Executors for Paper Ops",
+      abstract: "A test fixture for draft detail coverage.",
+      authors: ["A. Researcher"],
+      source: "arxiv",
+      venue: "arXiv",
+      categories: ["agents"],
+      paperUrl: "https://example.com/papers/42",
+      pdfUrl: "https://example.com/papers/42.pdf",
+      publishedAt: "2026-04-26T10:00:00Z",
+      updatedAtSource: "2026-04-26T10:00:00Z",
+    },
+  };
+  const exportRecordsResponse: ExportRecordsResponse = {
+    items: [
+      {
+        exportId: 11,
+        draftId: "draft-42-a",
+        exportedBy: "ops-bot",
+        success: true,
+        sourcePath: "outputs/editorial/2026-04-28/paper-ops-recap.md",
+        destinationPath: "outputs/exported/2026-04-28/paper-ops-recap.md",
+        errorMessage: null,
+        createdAt: "2026-04-28T13:00:00Z",
+      },
+    ],
+    total: 1,
+  };
+  const exportActionResponse: ExportActionResponse = exportRecordsResponse.items[0]!;
+
+  assert.equal(draftDetailResponse.paper.paperId, 42);
+  assert.match(draftDetailResponse.markdownContent, /^#/);
+  assert.equal(exportActionResponse.success, true);
+  assert.equal(exportRecordsResponse.total, 1);
 });

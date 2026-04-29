@@ -1,7 +1,28 @@
+import { draftsRepository } from "./repositories/drafts.ts";
+import { exportsRepository } from "./repositories/exports.ts";
 import { notificationsRepository } from "./repositories/notifications.ts";
 import { papersRepository, type PaperRepositoryRecord } from "./repositories/papers.ts";
 import { pipelineRepository } from "./repositories/pipeline.ts";
-import type { DashboardSnapshot, NotificationItem, PaperRecord, PaperSource } from "./types.ts";
+import type {
+  DashboardSnapshot,
+  DraftActionInput,
+  DraftAssignInput,
+  DraftAuditEvent,
+  DraftDetailItem,
+  DraftDetailRecord,
+  DraftExportInput,
+  DraftListFilters,
+  EditorialDraftItem,
+  EditorialPlatform,
+  ExportFeedRow,
+  ExportRecordItem,
+  NotificationItem,
+  PaperRecord,
+  PaperSearchParams,
+  PaperSearchResult,
+  PaperSource,
+  DraftStatus,
+} from "./types.ts";
 
 function buildNotificationsByPaperId(notifications: NotificationItem[]): Map<number, NotificationItem[]> {
   const notificationsByPaperId = new Map<number, NotificationItem[]>();
@@ -60,13 +81,16 @@ export async function listPaperRecords(): Promise<PaperRecord[]> {
   return hydratePaperRecords(records, notifications);
 }
 
-export async function searchPapers(query = ""): Promise<PaperRecord[]> {
-  const [records, notifications] = await Promise.all([
-    papersRepository.search(query),
-    notificationsRepository.listFeed(),
-  ]);
+export async function searchPapers(params: PaperSearchParams | string = {}): Promise<PaperSearchResult> {
+  const result = await papersRepository.search(params);
 
-  return hydratePaperRecords(records, notifications);
+  const notifications = await notificationsRepository.listFeed();
+  const notificationsByPaperId = buildNotificationsByPaperId(notifications);
+
+  return {
+    ...result,
+    records: result.records.map((record) => hydratePaperRecord(record, notificationsByPaperId)),
+  };
 }
 
 export async function getNotificationFeed(): Promise<NotificationItem[]> {
@@ -75,6 +99,129 @@ export async function getNotificationFeed(): Promise<NotificationItem[]> {
 
 export async function getSourceHealthBySource(source: PaperSource) {
   return pipelineRepository.getSourceHealthBySource(source);
+}
+
+export async function getDraftList(filters?: DraftListFilters): Promise<EditorialDraftItem[]> {
+  return draftsRepository.listDrafts(filters);
+}
+
+export async function getDraftDetail(draftId: string): Promise<DraftDetailRecord | null> {
+  const draft = await draftsRepository.getDraftDetail(draftId);
+
+  if (!draft) {
+    return null;
+  }
+
+  const allExports = await exportsRepository.listExportRecords();
+  const draftExports = allExports.filter((record) => record.draftId === draftId);
+
+  const auditTrail: DraftAuditEvent[] = [];
+
+  auditTrail.push({
+    eventId: `${draftId}-created`,
+    label: "Draft generated",
+    detail: `Editorial draft created for ${draft.platform} platform.`,
+    timestamp: draft.updatedAt,
+    tone: "info",
+  });
+
+  if (draft.status === "approved" || draft.status === "exported") {
+    auditTrail.push({
+      eventId: `${draftId}-approved`,
+      label: "Draft approved",
+      detail: `Draft marked as approved${draft.assignee ? ` by ${draft.assignee}` : ""}.`,
+      timestamp: draft.updatedAt,
+      tone: "success",
+    });
+  }
+
+  if (draft.status === "rejected") {
+    auditTrail.push({
+      eventId: `${draftId}-rejected`,
+      label: "Draft rejected",
+      detail: draft.reviewNote ?? "Draft was rejected.",
+      timestamp: draft.updatedAt,
+      tone: "danger",
+    });
+  }
+
+  if (draft.status === "in_review") {
+    auditTrail.push({
+      eventId: `${draftId}-reviewed`,
+      label: "Review started",
+      detail: draft.reviewNote ?? "Draft entered review.",
+      timestamp: draft.updatedAt,
+      tone: "warning",
+    });
+  }
+
+  for (const exportRecord of draftExports) {
+    auditTrail.push({
+      eventId: `export-${exportRecord.exportId}`,
+      label: exportRecord.success ? "Export succeeded" : "Export failed",
+      detail: exportRecord.success
+        ? `Exported by ${exportRecord.exportedBy} to ${exportRecord.destinationPath}.`
+        : `Export by ${exportRecord.exportedBy} failed: ${exportRecord.errorMessage}`,
+      timestamp: exportRecord.createdAt,
+      tone: exportRecord.success ? "success" : "danger",
+    });
+  }
+
+  auditTrail.sort((left, right) => new Date(right.timestamp).getTime() - new Date(left.timestamp).getTime());
+
+  return {
+    draft,
+    exportHistory: draftExports,
+    auditTrail,
+  };
+}
+
+export async function reviewDraft(draftId: string, payload: DraftActionInput): Promise<DraftDetailItem> {
+  return draftsRepository.reviewDraft(draftId, payload);
+}
+
+export async function approveDraft(draftId: string, payload: DraftActionInput): Promise<DraftDetailItem> {
+  return draftsRepository.approveDraft(draftId, payload);
+}
+
+export async function rejectDraft(draftId: string, payload: DraftActionInput): Promise<DraftDetailItem> {
+  return draftsRepository.rejectDraft(draftId, payload);
+}
+
+export async function assignDraft(draftId: string, payload: DraftAssignInput): Promise<DraftDetailItem> {
+  return draftsRepository.assignDraft(draftId, payload);
+}
+
+export async function exportDraft(draftId: string, payload: DraftExportInput): Promise<ExportRecordItem> {
+  return draftsRepository.exportDraft(draftId, payload);
+}
+
+export async function getDraftStatusCounts(): Promise<Record<DraftStatus, number>> {
+  return draftsRepository.getDraftStatusCounts();
+}
+
+export async function getDraftPlatformCounts(): Promise<Record<EditorialPlatform, number>> {
+  return draftsRepository.getDraftPlatformCounts();
+}
+
+export async function getExportRecords(): Promise<ExportFeedRow[]> {
+  const [exports, drafts] = await Promise.all([
+    exportsRepository.listExportRecords(),
+    draftsRepository.listDrafts(),
+  ]);
+
+  const draftMap = new Map(drafts.map((draft) => [draft.draftId, draft]));
+
+  return exports.map((record) => {
+    const draft = draftMap.get(record.draftId);
+
+    return {
+      record,
+      draftTitle: draft?.title ?? `Draft ${record.draftId}`,
+      platform: draft?.platform ?? null,
+      draftStatus: draft?.status ?? null,
+    };
+  });
 }
 
 export async function getDashboardSnapshot(): Promise<DashboardSnapshot> {

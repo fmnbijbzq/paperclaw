@@ -1,5 +1,12 @@
 import type {
+  DraftActionInput,
+  DraftAssignInput,
+  DraftDetailItem,
+  DraftExportInput,
+  DraftStatus,
   EditorialDraftItem,
+  EditorialPlatform,
+  ExportRecordItem,
   NotificationItem,
   PaperInsightItem,
   PaperItem,
@@ -26,9 +33,14 @@ export interface ApiEnvelope<TData> {
 }
 
 export interface PapersListRequest {
-  query?: string;
+  q?: string;
   source?: PaperSource;
+  category?: string;
+  venue?: string;
+  hasInsight?: boolean;
+  hasDraft?: boolean;
   limit?: number;
+  offset?: number;
 }
 
 export interface PaperListItemContract {
@@ -57,6 +69,27 @@ export interface EditorialDraftsResponse {
   items: EditorialDraftItem[];
   total: number;
 }
+
+export interface EditorialDraftListRequest {
+  status?: DraftStatus;
+  platform?: EditorialPlatform;
+  limit?: number;
+}
+
+export type EditorialDraftDetailResponse = DraftDetailItem;
+
+export type EditorialDraftActionRequest = DraftActionInput;
+
+export type EditorialDraftAssignRequest = DraftAssignInput;
+
+export type EditorialDraftExportRequest = DraftExportInput;
+
+export interface ExportRecordsResponse {
+  items: ExportRecordItem[];
+  total: number;
+}
+
+export type ExportActionResponse = ExportRecordItem;
 
 export interface PaperDetailRequest {
   paperId: number;

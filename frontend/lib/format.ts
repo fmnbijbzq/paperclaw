@@ -1,4 +1,4 @@
-import type { EditorialPlatform, PaperSource } from "./types";
+import type { DraftStatus, EditorialPlatform, PaperSource } from "./types";
 
 const compactNumberFormatter = new Intl.NumberFormat("en", {
   notation: "compact",
@@ -57,6 +57,18 @@ export function formatPlatform(platform: EditorialPlatform): string {
   };
 
   return labels[platform];
+}
+
+export function formatDraftStatus(status: DraftStatus): string {
+  const labels: Record<DraftStatus, string> = {
+    generated: "Generated",
+    in_review: "In review",
+    approved: "Approved",
+    rejected: "Rejected",
+    exported: "Exported",
+  };
+
+  return labels[status];
 }
 
 export function formatPercent(value: number): string {

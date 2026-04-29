@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getDashboardSnapshot, getNotificationFeed, getPaperDetail, searchPapers } from "../lib/queries.ts";
+import {
+  getDashboardSnapshot,
+  getDraftDetail,
+  getDraftList,
+  getExportRecords,
+  getNotificationFeed,
+  getPaperDetail,
+  searchPapers,
+} from "../lib/queries.ts";
 
 test("getDashboardSnapshot derives overview metrics from demo data", async () => {
   const snapshot = await getDashboardSnapshot();
@@ -14,14 +22,22 @@ test("getDashboardSnapshot derives overview metrics from demo data", async () =>
 });
 
 test("searchPapers matches titles, authors, and categories", async () => {
-  const titleMatches = await searchPapers("Gaussian");
-  const authorMatches = await searchPapers("Mei Chen");
-  const categoryMatches = await searchPapers("video");
+  const titleMatches = await searchPapers({
+    q: "Gaussian",
+  });
+  const authorMatches = await searchPapers({
+    q: "Mei Chen",
+  });
+  const categoryMatches = await searchPapers({
+    category: "video",
+    page: 1,
+    pageSize: 10,
+  });
 
-  assert.equal(titleMatches.length, 1);
-  assert.match(titleMatches[0]?.paper.title ?? "", /Gaussian/i);
-  assert.equal(authorMatches[0]?.paper.paperId, 105);
-  assert.equal(categoryMatches.length, 2);
+  assert.equal(titleMatches.total, 1);
+  assert.match(titleMatches.records[0]?.paper.title ?? "", /Gaussian/i);
+  assert.equal(authorMatches.records[0]?.paper.paperId, 105);
+  assert.equal(categoryMatches.total, 2);
 });
 
 test("getPaperDetail aggregates insight, notification, and editorial draft state", async () => {
@@ -41,4 +57,21 @@ test("getNotificationFeed keeps the newest delivery attempts first", async () =>
     feed.slice(0, 3).map((item) => item.notificationId),
     [804, 801, 802],
   );
+});
+
+test("draft queries expose filters, detail joins, and export audit visibility", async () => {
+  const approvedDrafts = await getDraftList({
+    status: "approved",
+  });
+  const detail = await getDraftDetail("101-bilibili");
+  const exportRows = await getExportRecords();
+
+  assert.deepEqual(
+    approvedDrafts.map((draft) => draft.draftId),
+    ["106-douyin", "101-xiaohongshu"],
+  );
+  assert.equal(detail?.draft.paper.paperId, 101);
+  assert.ok(detail?.auditTrail.some((event) => event.label === "Export succeeded"));
+  assert.equal(detail?.exportHistory[0]?.success, true);
+  assert.equal(exportRows[0]?.draftTitle, "机器人视觉故障排查终于有索引了");
 });

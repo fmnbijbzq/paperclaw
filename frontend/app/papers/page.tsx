@@ -1,12 +1,37 @@
-import { Search } from "lucide-react";
+import { Suspense } from "react";
 
 import { EmptyState } from "@/components/empty-state";
+import { PaperSearchForm } from "@/components/paper-search-form";
 import { PaperList } from "@/components/paper-list";
 import { SectionCard } from "@/components/section-card";
 import { searchPapers } from "@/lib/queries";
+import type { PaperSource } from "@/lib/types";
 
-export default async function PapersPage() {
-  const records = await searchPapers();
+interface PapersPageProps {
+  searchParams: Promise<{
+    q?: string;
+    source?: string;
+    page?: string;
+  }>;
+}
+
+const validSources: PaperSource[] = ["arxiv", "openreview", "cvf"];
+
+export default async function PapersPage({ searchParams }: PapersPageProps) {
+  const { q: rawQuery, source: rawSource, page: rawPage } = await searchParams;
+
+  const query = rawQuery ?? "";
+  const source: PaperSource | "all" = rawSource && validSources.includes(rawSource as PaperSource) ? (rawSource as PaperSource) : "all";
+  const page = rawPage ? Math.max(1, Number.parseInt(rawPage, 10)) : 1;
+
+  const result = await searchPapers({
+    q: query || undefined,
+    source: source !== "all" ? source : undefined,
+    page,
+    pageSize: 20,
+  });
+
+  const { records, total, totalPages } = result;
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -14,32 +39,65 @@ export default async function PapersPage() {
         <p className="eyebrow">Paper inventory</p>
         <h1 className="section-title mt-3 text-4xl font-semibold text-white sm:text-5xl">Research intake across crawlers</h1>
         <p className="mt-4 max-w-3xl text-base subtle-copy sm:text-lg">
-          This view is shaped around the backend paper + insight + notification model, so you can inspect discovery, enrichment,
-          and downstream readiness in one place.
+          Search and browse papers from arXiv, OpenReview, and CVF. Use the search bar and source filter to find specific papers.
         </p>
-        <div className="mt-6 flex max-w-xl items-center gap-3 rounded-[1.5rem] border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.6)] px-4 py-3">
-          <Search className="h-4 w-4 text-[color:var(--accent-blue)]" aria-hidden="true" />
-          <div>
-            <p className="text-sm font-semibold text-white">Search-ready layout</p>
-            <p className="text-sm subtle-copy">
-              The current demo dataset is rendered in full. Query helpers already support title, author, venue, category, and summary matching.
-            </p>
-          </div>
+
+        <div className="mt-6">
+          <Suspense>
+            <PaperSearchForm initialQuery={query} initialSource={source} />
+          </Suspense>
         </div>
       </section>
 
       <SectionCard
         eyebrow="Paper records"
-        title={`${records.length} papers in the current working set`}
-        description="Rows emphasize source, summary confidence, draft count, and notification state for high-density browsing."
+        title={query ? `${total} results for "${query}"` : `${total} papers in the current working set`}
+        description={
+          query
+            ? `Showing page ${page} of ${totalPages}. Results match title, author, venue, category, and summary content.`
+            : "Rows emphasize source, summary confidence, draft count, and notification state for high-density browsing."
+        }
       >
         {records.length > 0 ? (
-          <PaperList records={records} />
+          <>
+            <PaperList records={records} />
+            {totalPages > 1 && (
+              <div className="mt-6 flex items-center justify-center gap-3">
+                {page > 1 ? (
+                  <a
+                    href={`/papers?${new URLSearchParams({ ...(query && { q: query }), ...(source !== "all" && { source }), page: String(page - 1) }).toString()}`}
+                    className="action-button action-button-secondary"
+                  >
+                    Previous
+                  </a>
+                ) : (
+                  <span className="action-button action-button-secondary pointer-events-none opacity-40">Previous</span>
+                )}
+                <span className="text-sm subtle-copy">
+                  Page {page} of {totalPages}
+                </span>
+                {page < totalPages ? (
+                  <a
+                    href={`/papers?${new URLSearchParams({ ...(query && { q: query }), ...(source !== "all" && { source }), page: String(page + 1) }).toString()}`}
+                    className="action-button action-button-secondary"
+                  >
+                    Next
+                  </a>
+                ) : (
+                  <span className="action-button action-button-secondary pointer-events-none opacity-40">Next</span>
+                )}
+              </div>
+            )}
+          </>
         ) : (
           <EmptyState
             compact
-            title="No papers are available yet"
-            description="When the repository returns paper records, they will render here with insight, delivery, and editorial context."
+            title={query ? "No papers match your search" : "No papers are available yet"}
+            description={
+              query
+                ? `No results found for "${query}". Try a different search term or adjust the source filter.`
+                : "When the repository returns paper records, they will render here with insight, delivery, and editorial context."
+            }
           />
         )}
       </SectionCard>

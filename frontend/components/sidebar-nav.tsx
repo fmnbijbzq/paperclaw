@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BellRing, BookOpenText, ChartColumnStacked, LayoutDashboard, MoveUpRight } from "lucide-react";
+import { ArrowDownToLine, BellRing, BookOpenText, ChartColumnStacked, FilePenLine, LayoutDashboard, MoveUpRight } from "lucide-react";
 
 import { cx } from "@/lib/utils";
 
@@ -24,6 +24,18 @@ const navigationItems = [
     label: "Pipeline",
     description: "Editorial flow",
     icon: ChartColumnStacked,
+  },
+  {
+    href: "/drafts",
+    label: "Drafts",
+    description: "Draft management",
+    icon: FilePenLine,
+  },
+  {
+    href: "/exports",
+    label: "Exports",
+    description: "Export history",
+    icon: ArrowDownToLine,
   },
   {
     href: "/notifications",

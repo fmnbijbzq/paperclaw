@@ -1,5 +1,6 @@
 export type PaperSource = "arxiv" | "openreview" | "cvf";
 export type EditorialPlatform = "bilibili" | "xiaohongshu" | "douyin";
+export type DraftStatus = "generated" | "in_review" | "approved" | "rejected" | "exported";
 export type StageStatus = "live" | "partial" | "planned";
 export type HealthStatus = "healthy" | "degraded" | "attention";
 
@@ -45,9 +46,27 @@ export interface EditorialDraftItem {
   platform: EditorialPlatform;
   title: string;
   hook: string;
-  status: "generated" | "reviewed" | "ready-to-export";
+  status: DraftStatus;
+  assignee: string | null;
   updatedAt: string;
   outputPath: string;
+}
+
+export interface DraftDetailItem extends EditorialDraftItem {
+  markdownContent: string;
+  reviewNote: string | null;
+  paper: PaperItem;
+}
+
+export interface ExportRecordItem {
+  exportId: number;
+  draftId: string;
+  exportedBy: string;
+  success: boolean;
+  sourcePath: string;
+  destinationPath: string | null;
+  errorMessage: string | null;
+  createdAt: string;
 }
 
 export interface SourceHealthItem {
@@ -102,4 +121,65 @@ export interface DashboardSnapshot {
   editorialDrafts: EditorialDraftItem[];
   pipelineStages: PipelineStageItem[];
   notifications: NotificationItem[];
+}
+
+export interface DraftActionInput {
+  actor: string;
+  note?: string | null;
+}
+
+export interface DraftAssignInput {
+  assignee: string;
+  actor?: string | null;
+}
+
+export interface DraftExportInput {
+  exportedBy: string;
+}
+
+export interface DraftListFilters {
+  status?: DraftStatus | "all";
+  platform?: EditorialPlatform | "all";
+  limit?: number;
+}
+
+export interface DraftAuditEvent {
+  eventId: string;
+  label: string;
+  detail: string;
+  timestamp: string;
+  tone: "success" | "warning" | "danger" | "info" | "neutral";
+}
+
+export interface DraftDetailRecord {
+  draft: DraftDetailItem;
+  exportHistory: ExportRecordItem[];
+  auditTrail: DraftAuditEvent[];
+}
+
+export interface ExportFeedRow {
+  record: ExportRecordItem;
+  draftTitle: string;
+  platform: EditorialPlatform | null;
+  draftStatus: DraftStatus | null;
+}
+
+export interface PaperSearchParams {
+  q?: string;
+  source?: PaperSource | "all";
+  category?: string;
+  venue?: string;
+  hasInsight?: boolean;
+  hasDraft?: boolean;
+  page?: number;
+  pageSize?: number;
+}
+
+export interface PaperSearchResult {
+  records: PaperRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  appliedQuery: string;
 }

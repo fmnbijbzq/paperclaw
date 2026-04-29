@@ -1,14 +1,16 @@
 import { FileText, FolderGit2 } from "lucide-react";
 
 import { StatusBadge } from "@/components/status-badge";
-import { formatDateTime, formatPlatform } from "@/lib/format";
-import type { EditorialDraftItem } from "@/lib/types";
+import { formatDateTime, formatDraftStatus, formatPlatform } from "@/lib/format";
+import type { DraftStatus, EditorialDraftItem } from "@/lib/types";
 
-const toneMap = {
-  generated: "info",
-  reviewed: "warning",
-  "ready-to-export": "success",
-} as const;
+const toneMap: Record<DraftStatus, "success" | "warning" | "danger" | "info" | "neutral"> = {
+  generated: "neutral",
+  in_review: "warning",
+  approved: "success",
+  rejected: "danger",
+  exported: "info",
+};
 
 interface EditorialPreviewCardProps {
   draft: EditorialDraftItem;
@@ -22,7 +24,7 @@ export function EditorialPreviewCard({ draft }: EditorialPreviewCardProps) {
           <p className="eyebrow">{formatPlatform(draft.platform)}</p>
           <h3 className="mt-2 text-base font-semibold text-white">{draft.title}</h3>
         </div>
-        <StatusBadge label={draft.status} tone={toneMap[draft.status]} />
+        <StatusBadge label={formatDraftStatus(draft.status)} tone={toneMap[draft.status]} />
       </div>
       <p className="mt-3 text-sm subtle-copy">{draft.hook}</p>
       <dl className="mt-4 space-y-3 text-sm">
