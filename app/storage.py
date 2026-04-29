@@ -3,13 +3,14 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import Base, CrawlRun, EditorialDraft, EditorialRun, ExportRecord, Notification, Paper, PaperInsight, PaperVersion, SummarizationRun
+from app.models import Base, CrawlRun, DestinationRecord, EditorialDraft, EditorialRun, ExportRecord, Notification, Paper, PaperInsight, PaperVersion, SummarizationRun
 from app.schemas import PaperRecord
 from app.summarization.schemas import PaperInsightRecord
 from app.utils.time import utc_now
@@ -335,6 +336,71 @@ class Database:
     def list_export_records(self) -> list[ExportRecord]:
         with self._session() as session:
             return list(session.scalars(select(ExportRecord).order_by(ExportRecord.export_id.asc())))
+
+    # ── Destination record CRUD ───────────────────────────────────────────
+
+    def create_destination_record(
+        self,
+        *,
+        draft_id: str,
+        platform: str,
+        status: str = "pending",
+        publish_result: dict[str, Any] | None = None,
+        callback_url: str | None = None,
+    ) -> DestinationRecord:
+        with self._session() as session:
+            draft = session.get(EditorialDraft, draft_id)
+            if draft is None:
+                raise ValueError(f"editorial draft {draft_id} does not exist")
+            record = DestinationRecord(
+                draft_id=draft_id,
+                platform=platform,
+                status=status,
+                publish_result=publish_result,
+                callback_url=callback_url,
+            )
+            session.add(record)
+            session.commit()
+            return record
+
+    def update_destination_record(
+        self,
+        destination_id: int,
+        *,
+        status: str | None = None,
+        publish_result: dict[str, Any] | None = None,
+        callback_url: str | None = None,
+    ) -> DestinationRecord:
+        with self._session() as session:
+            record = session.get(DestinationRecord, destination_id)
+            if record is None:
+                raise ValueError(f"destination record {destination_id} does not exist")
+            if status is not None:
+                record.status = status
+            if publish_result is not None:
+                record.publish_result = publish_result
+            if callback_url is not None:
+                record.callback_url = callback_url
+            session.commit()
+            return record
+
+    def get_destination_record(self, destination_id: int) -> DestinationRecord | None:
+        with self._session() as session:
+            return session.get(DestinationRecord, destination_id)
+
+    def list_destination_records(
+        self,
+        *,
+        draft_id: str | None = None,
+        platform: str | None = None,
+    ) -> list[DestinationRecord]:
+        stmt = select(DestinationRecord).order_by(DestinationRecord.destination_id.asc())
+        if draft_id is not None:
+            stmt = stmt.where(DestinationRecord.draft_id == draft_id)
+        if platform is not None:
+            stmt = stmt.where(DestinationRecord.platform == platform)
+        with self._session() as session:
+            return list(session.scalars(stmt).all())
 
     def count_papers(self) -> int:
         with self._session() as session:

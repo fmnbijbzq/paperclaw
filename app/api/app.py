@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from pydantic import ValidationError
 
+from app.api.routes.destinations import router as destinations_router
 from app.api.routes.drafts import router as drafts_router
 from app.api.routes.notifications import router as notifications_router
 from app.api.routes.papers import router as papers_router
@@ -43,6 +44,7 @@ def create_app(*, database_url: str | None = None, editorial_root: Path | None =
 
     app.include_router(papers_router)
     app.include_router(drafts_router)
+    app.include_router(destinations_router)
     app.include_router(notifications_router)
     app.include_router(pipeline_router)
     return app

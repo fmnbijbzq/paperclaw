@@ -294,6 +294,43 @@ class EditorialRunsResponse(ApiModel):
     total: int
 
 
+# ── Destination / Distribution schemas ────────────────────────────────────
+
+
+class DestinationRecordItem(ApiModel):
+    destination_id: int = Field(alias="destinationId")
+    draft_id: str = Field(alias="draftId")
+    platform: str
+    status: str
+    publish_result: dict | None = Field(default=None, alias="publishResult")
+    callback_url: str | None = Field(default=None, alias="callbackUrl")
+    created_at: str = Field(alias="createdAt")
+    updated_at: str = Field(alias="updatedAt")
+
+
+class DestinationCreateRequest(ApiModel):
+    draft_id: str = Field(alias="draftId")
+    platform: str
+    status: str = "pending"
+    publish_result: dict | None = Field(default=None, alias="publishResult")
+    callback_url: str | None = Field(default=None, alias="callbackUrl")
+
+
+class DestinationUpdateRequest(ApiModel):
+    status: str | None = None
+    publish_result: dict | None = Field(default=None, alias="publishResult")
+    callback_url: str | None = Field(default=None, alias="callbackUrl")
+
+
+class DestinationRecordsResponse(ApiModel):
+    items: list[DestinationRecordItem]
+    total: int
+
+
+class DestinationCreateResponse(DestinationRecordItem):
+    pass
+
+
 def create_envelope(data: T) -> ApiEnvelope[T]:
     return ApiEnvelope(
         data=data,

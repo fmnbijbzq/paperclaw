@@ -159,6 +159,10 @@ class EditorialDraft(Base):
         back_populates="draft",
         cascade="all, delete-orphan",
     )
+    destination_records: Mapped[list["DestinationRecord"]] = relationship(
+        back_populates="draft",
+        cascade="all, delete-orphan",
+    )
 
 
 class SummarizationRun(Base):
@@ -198,3 +202,26 @@ class ExportRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     draft: Mapped[EditorialDraft] = relationship(back_populates="export_records")
+
+
+class DestinationRecord(Base):
+    """Tracks distribution/publishing of a draft to a specific platform."""
+    __tablename__ = "destination_records"
+
+    destination_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    draft_id: Mapped[str] = mapped_column(ForeignKey("editorial_drafts.draft_id", ondelete="CASCADE"), nullable=False)
+    platform: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
+    publish_result: Mapped[dict[str, Any] | None] = mapped_column(JSON, default=None)
+    callback_url: Mapped[str | None] = mapped_column(String(1000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        nullable=False,
+    )
+
+    draft: Mapped[EditorialDraft] = relationship(
+        back_populates="destination_records",
+    )
