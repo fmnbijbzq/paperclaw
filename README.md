@@ -168,9 +168,13 @@ Create `frontend/.env.local`:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+
+# Equivalent server-side configuration:
+PAPERCLAW_DATA_SOURCE=http
+PAPERCLAW_API_BASE_URL=http://localhost:8000
 ```
 
-Without this variable the frontend uses demo data (no backend required).
+Without an API base URL the frontend uses demo data (no backend required).
 
 ---
 

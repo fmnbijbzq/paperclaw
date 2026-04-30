@@ -1,11 +1,9 @@
 """Bilibili publishing adapter (stub implementation)."""
 from __future__ import annotations
 
-from datetime import timezone
 from typing import Any
 
 from app.publish.base import BasePublisher, PublishResult
-from app.utils.time import utc_now
 
 
 class BilibiliPublisher(BasePublisher):
@@ -28,13 +26,12 @@ class BilibiliPublisher(BasePublisher):
     ) -> PublishResult:
         # TODO: integrate with Bilibili open API
         return PublishResult(
-            success=True,
+            success=False,
             platform=self.platform_name,
             external_id=None,
             external_url=None,
             error_message="stub: not yet integrated with Bilibili API",
             metadata=metadata or {},
-            published_at=utc_now(),
         )
 
     def check_status(self, external_id: str) -> PublishResult:

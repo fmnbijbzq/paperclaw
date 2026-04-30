@@ -28,6 +28,17 @@ test("resolveRuntimeConfig accepts HTTP mode and normalizes the API base URL", (
   });
 });
 
+test("resolveRuntimeConfig treats NEXT_PUBLIC_API_BASE_URL as an HTTP shortcut", () => {
+  const config = resolveRuntimeConfig({
+    NEXT_PUBLIC_API_BASE_URL: "http://localhost:8000/",
+  });
+
+  assert.deepEqual(config, {
+    dataSource: "http",
+    apiBaseUrl: "http://localhost:8000",
+  });
+});
+
 test("resolveRuntimeConfig falls back to demo mode for unsupported values", () => {
   const config = resolveRuntimeConfig({
     PAPERCLAW_DATA_SOURCE: "staging",

@@ -53,8 +53,10 @@ class ArxivSource(BaseSource):
     def _build_query_params(self) -> dict[str, str | int]:
         query = self.search_query
         if self.lookback_days is not None:
-            since = (datetime.now(UTC) - timedelta(days=self.lookback_days)).strftime("%Y%m%d%H%M")
-            query = f"{query} AND lastUpdatedDate:[{since} TO *]"
+            now = datetime.now(UTC)
+            since = (now - timedelta(days=self.lookback_days)).strftime("%Y%m%d%H%M")
+            until = now.strftime("%Y%m%d%H%M")
+            query = f"{query} AND submittedDate:[{since} TO {until}]"
 
         return {
             "search_query": query,

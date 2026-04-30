@@ -34,13 +34,13 @@ def _duration_seconds(started_at, finished_at) -> float | None:
 
 
 @router.get("/summary")
-def get_pipeline_summary(request: Request) -> dict:
+async def get_pipeline_summary(request: Request) -> dict:
     payload = build_pipeline_summary(request.app.state.db, request.app.state.editorial_root)
     return create_envelope(payload).model_dump(by_alias=True)
 
 
 @router.get("/runs/crawl")
-def list_crawl_runs(request: Request, source: str | None = None, limit: int = 50) -> dict:
+async def list_crawl_runs(request: Request, source: str | None = None, limit: int = 50) -> dict:
     db = request.app.state.db
     runs = db.list_crawl_runs(source=source, limit=limit)
     items = [
@@ -61,7 +61,7 @@ def list_crawl_runs(request: Request, source: str | None = None, limit: int = 50
 
 
 @router.get("/runs/summarization")
-def list_summarization_runs(request: Request, limit: int = 50) -> dict:
+async def list_summarization_runs(request: Request, limit: int = 50) -> dict:
     db = request.app.state.db
     runs = db.list_summarization_runs(limit=limit)
     items = [
@@ -81,7 +81,7 @@ def list_summarization_runs(request: Request, limit: int = 50) -> dict:
 
 
 @router.get("/runs/editorial")
-def list_editorial_runs(request: Request, limit: int = 50) -> dict:
+async def list_editorial_runs(request: Request, limit: int = 50) -> dict:
     db = request.app.state.db
     runs = db.list_editorial_runs(limit=limit)
     items = [

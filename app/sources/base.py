@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from io import BytesIO
 import logging
 
 import httpx
-from pypdf import PdfReader
 
+from app.enrichment.extractor import TextExtractor
 from app.schemas import PaperRecord
 
 
@@ -44,11 +43,8 @@ class BaseSource(ABC):
             return None
 
         try:
-            response = self._get_url(pdf_url)
-            reader = PdfReader(BytesIO(response.content))
-            pages = [page.extract_text() or "" for page in reader.pages]
-            full_text = "\n".join(part.strip() for part in pages if part and part.strip()).strip()
-            return full_text or None
+            extractor = TextExtractor(timeout=self.timeout, transport=self._transport)
+            return extractor.extract_pdf_text(pdf_url)
         except Exception as exc:
             self.logger.warning("Failed to fetch full text from %s: %s", pdf_url, exc)
             return None

@@ -26,7 +26,7 @@ interface ResolveDataSourcesOptions {
 
 function requireApiBaseUrl(config: RuntimeConfig): string {
   if (!config.apiBaseUrl) {
-    throw new Error("HTTP data source mode requires an API base URL via PAPERCLAW_API_BASE_URL.");
+    throw new Error("HTTP data source mode requires an API base URL via PAPERCLAW_API_BASE_URL or NEXT_PUBLIC_API_BASE_URL.");
   }
 
   return config.apiBaseUrl;

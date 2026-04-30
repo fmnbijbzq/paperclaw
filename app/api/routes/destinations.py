@@ -21,7 +21,7 @@ router = APIRouter(tags=["destinations"])
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def _require_api_key(
+async def _require_api_key(
     request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
 ) -> None:
@@ -61,7 +61,7 @@ def _destination_to_item(record: DestinationRecord) -> DestinationRecordItem:
 
 
 @router.get("/destinations")
-def list_destinations(
+async def list_destinations(
     request: Request,
     draft_id: str | None = None,
     platform: str | None = None,
@@ -75,7 +75,7 @@ def list_destinations(
 
 
 @router.get("/destinations/{draft_id}")
-def get_destinations_for_draft(request: Request, draft_id: str) -> dict:
+async def get_destinations_for_draft(request: Request, draft_id: str) -> dict:
     db: Database = request.app.state.db
     records = db.list_destination_records(draft_id=draft_id)
     items = [_destination_to_item(r) for r in records]
@@ -85,7 +85,7 @@ def get_destinations_for_draft(request: Request, draft_id: str) -> dict:
 
 
 @router.post("/destinations", dependencies=[Depends(_require_api_key)])
-def create_destination(request: Request, body: DestinationCreateRequest) -> dict:
+async def create_destination(request: Request, body: DestinationCreateRequest) -> dict:
     db: Database = request.app.state.db
     try:
         record = db.create_destination_record(
@@ -103,7 +103,7 @@ def create_destination(request: Request, body: DestinationCreateRequest) -> dict
 
 
 @router.patch("/destinations/{destination_id}", dependencies=[Depends(_require_api_key)])
-def update_destination(request: Request, destination_id: int, body: DestinationUpdateRequest) -> dict:
+async def update_destination(request: Request, destination_id: int, body: DestinationUpdateRequest) -> dict:
     db: Database = request.app.state.db
     try:
         record = db.update_destination_record(

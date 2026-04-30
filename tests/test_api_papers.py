@@ -6,12 +6,11 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from fastapi.testclient import TestClient
-
 from app.api.app import create_app
 from app.schemas import PaperRecord
 from app.storage import Database
 from app.summarization.schemas import PaperInsightRecord
+from tests.api_client import ASGITestClient
 
 
 def _build_paper(source_paper_id: str = "2404.01812", title: str = "Sparse Field Priors") -> PaperRecord:
@@ -34,11 +33,11 @@ def _build_paper(source_paper_id: str = "2404.01812", title: str = "Sparse Field
     )
 
 
-def _make_client(tmp_path: Path) -> TestClient:
+def _make_client(tmp_path: Path) -> ASGITestClient:
     database_url = f"sqlite:///{tmp_path/'papers.db'}"
     editorial_dir = tmp_path / "outputs" / "editorial"
     app = create_app(database_url=database_url, editorial_root=editorial_dir)
-    return TestClient(app)
+    return ASGITestClient(app)
 
 
 def _seed_paper_with_insight(tmp_path: Path) -> Database:
@@ -85,7 +84,7 @@ def _seed_editorial_draft(tmp_path: Path, *, status: str = "generated"):
 
 
 def test_health_endpoint_returns_http_api_envelope():
-    client = TestClient(create_app())
+    client = ASGITestClient(create_app())
 
     response = client.get("/health")
 

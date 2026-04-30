@@ -31,14 +31,14 @@ export function EditorialPreviewCard({ draft }: EditorialPreviewCardProps) {
         <div className="flex items-center gap-2">
           <FileText className="h-4 w-4 text-[color:var(--accent-blue)]" aria-hidden="true" />
           <div>
-            <dt className="subtle-copy">Updated</dt>
+            <dt className="subtle-copy">更新时间</dt>
             <dd className="text-white">{formatDateTime(draft.updatedAt)}</dd>
           </div>
         </div>
         <div className="flex items-start gap-2">
           <FolderGit2 className="mt-0.5 h-4 w-4 text-[color:var(--accent-amber)]" aria-hidden="true" />
           <div className="min-w-0">
-            <dt className="subtle-copy">Output path</dt>
+            <dt className="subtle-copy">输出路径</dt>
             <dd className="truncate text-white">{draft.outputPath}</dd>
           </div>
         </div>

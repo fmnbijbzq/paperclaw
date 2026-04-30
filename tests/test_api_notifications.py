@@ -6,11 +6,10 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from fastapi.testclient import TestClient
-
 from app.api.app import create_app
 from app.schemas import PaperRecord
 from app.storage import Database
+from tests.api_client import ASGITestClient
 
 
 class StubNotifier:
@@ -56,7 +55,7 @@ def _seed_notifications(tmp_path: Path) -> None:
 
 def test_list_notifications_returns_feed_and_counts(tmp_path):
     _seed_notifications(tmp_path)
-    client = TestClient(
+    client = ASGITestClient(
         create_app(
             database_url=f"sqlite:///{tmp_path/'papers.db'}",
             editorial_root=tmp_path / "outputs" / "editorial",
@@ -84,7 +83,7 @@ def test_retry_notifications_supports_batch_and_records_results(tmp_path):
         editorial_root=tmp_path / "outputs" / "editorial",
     )
     app.state.notification_notifier = StubNotifier(fail_titles={"Second Paper"})
-    client = TestClient(app)
+    client = ASGITestClient(app)
 
     response = client.post("/notifications/retry", json={"paperIds": [1, 2]})
 
@@ -110,7 +109,7 @@ def test_retry_notifications_accepts_notification_ids(tmp_path):
         editorial_root=tmp_path / "outputs" / "editorial",
     )
     app.state.notification_notifier = StubNotifier()
-    client = TestClient(app)
+    client = ASGITestClient(app)
 
     response = client.post("/notifications/retry", json={"notificationIds": [2]})
 

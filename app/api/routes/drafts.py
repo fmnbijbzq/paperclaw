@@ -22,13 +22,13 @@ def _raise_draft_error(exc: ValueError) -> None:
 
 
 @router.get("/drafts")
-def get_drafts(request: Request) -> dict:
+async def get_drafts(request: Request) -> dict:
     items = list_drafts(request.app.state.db)
     return create_envelope(EditorialDraftsResponse(items=items, total=len(items))).model_dump(by_alias=True)
 
 
 @router.get("/drafts/{draft_id}")
-def get_draft(request: Request, draft_id: str) -> dict:
+async def get_draft(request: Request, draft_id: str) -> dict:
     payload = get_draft_detail(request.app.state.db, draft_id)
     if payload is None:
         raise HTTPException(status_code=404, detail="draft not found")
@@ -36,7 +36,7 @@ def get_draft(request: Request, draft_id: str) -> dict:
 
 
 @router.post("/drafts/{draft_id}/assign")
-def assign_draft(request: Request, draft_id: str, body: EditorialDraftAssignRequest) -> dict:
+async def assign_draft(request: Request, draft_id: str, body: EditorialDraftAssignRequest) -> dict:
     try:
         draft = request.app.state.db.assign_editorial_draft(draft_id, assignee=body.assignee, actor=body.actor)
     except ValueError as exc:
@@ -46,7 +46,7 @@ def assign_draft(request: Request, draft_id: str, body: EditorialDraftAssignRequ
 
 
 @router.post("/drafts/{draft_id}/review")
-def review_draft(request: Request, draft_id: str, body: EditorialDraftActionRequest) -> dict:
+async def review_draft(request: Request, draft_id: str, body: EditorialDraftActionRequest) -> dict:
     try:
         draft = request.app.state.db.review_editorial_draft(draft_id, actor=body.actor, note=body.note)
     except ValueError as exc:
@@ -56,7 +56,7 @@ def review_draft(request: Request, draft_id: str, body: EditorialDraftActionRequ
 
 
 @router.post("/drafts/{draft_id}/approve")
-def approve_draft(request: Request, draft_id: str, body: EditorialDraftActionRequest) -> dict:
+async def approve_draft(request: Request, draft_id: str, body: EditorialDraftActionRequest) -> dict:
     try:
         draft = request.app.state.db.approve_editorial_draft(draft_id, actor=body.actor, note=body.note)
     except ValueError as exc:
@@ -66,7 +66,7 @@ def approve_draft(request: Request, draft_id: str, body: EditorialDraftActionReq
 
 
 @router.post("/drafts/{draft_id}/reject")
-def reject_draft(request: Request, draft_id: str, body: EditorialDraftActionRequest) -> dict:
+async def reject_draft(request: Request, draft_id: str, body: EditorialDraftActionRequest) -> dict:
     try:
         draft = request.app.state.db.reject_editorial_draft(draft_id, actor=body.actor, note=body.note)
     except ValueError as exc:
@@ -76,7 +76,7 @@ def reject_draft(request: Request, draft_id: str, body: EditorialDraftActionRequ
 
 
 @router.post("/drafts/{draft_id}/export")
-def export_draft_route(request: Request, draft_id: str, body: EditorialDraftExportRequest) -> dict:
+async def export_draft_route(request: Request, draft_id: str, body: EditorialDraftExportRequest) -> dict:
     try:
         payload = export_draft(request.app.state.db, draft_id=draft_id, exported_by=body.exported_by)
     except ValueError as exc:
@@ -85,6 +85,6 @@ def export_draft_route(request: Request, draft_id: str, body: EditorialDraftExpo
 
 
 @router.get("/exports")
-def get_exports(request: Request) -> dict:
+async def get_exports(request: Request) -> dict:
     items = list_exports(request.app.state.db)
     return create_envelope(ExportRecordsResponse(items=items, total=len(items))).model_dump(by_alias=True)

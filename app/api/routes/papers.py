@@ -10,7 +10,7 @@ router = APIRouter(prefix="/papers", tags=["papers"])
 
 
 @router.get("")
-def get_papers(
+async def get_papers(
     request: Request,
     q: str = "",
     source: str | None = None,
@@ -39,20 +39,20 @@ def get_papers(
 
 
 @router.get("/insights")
-def get_paper_insights(request: Request) -> dict:
+async def get_paper_insights(request: Request) -> dict:
     db = request.app.state.db
     items = list_paper_insights(db)
     return create_envelope(PaperInsightsResponse(items=items, total=len(items))).model_dump(by_alias=True)
 
 
 @router.get("/editorial-drafts")
-def get_editorial_drafts(request: Request) -> dict:
+async def get_editorial_drafts(request: Request) -> dict:
     items = list_drafts(request.app.state.db)
     return create_envelope(EditorialDraftsResponse(items=items, total=len(items))).model_dump(by_alias=True)
 
 
 @router.get("/{paper_id}")
-def get_paper(request: Request, paper_id: int) -> dict:
+async def get_paper(request: Request, paper_id: int) -> dict:
     db = request.app.state.db
     payload = get_paper_detail(db, paper_id)
     if payload is None:

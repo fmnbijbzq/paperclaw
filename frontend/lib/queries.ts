@@ -120,8 +120,8 @@ export async function getDraftDetail(draftId: string): Promise<DraftDetailRecord
 
   auditTrail.push({
     eventId: `${draftId}-created`,
-    label: "Draft generated",
-    detail: `Editorial draft created for ${draft.platform} platform.`,
+    label: "草稿已生成",
+    detail: `已为 ${draft.platform} 平台创建编辑草稿。`,
     timestamp: draft.updatedAt,
     tone: "info",
   });
@@ -129,8 +129,8 @@ export async function getDraftDetail(draftId: string): Promise<DraftDetailRecord
   if (draft.status === "approved" || draft.status === "exported") {
     auditTrail.push({
       eventId: `${draftId}-approved`,
-      label: "Draft approved",
-      detail: `Draft marked as approved${draft.assignee ? ` by ${draft.assignee}` : ""}.`,
+      label: "草稿已批准",
+      detail: `草稿已标记为批准${draft.assignee ? `，负责人：${draft.assignee}` : ""}。`,
       timestamp: draft.updatedAt,
       tone: "success",
     });
@@ -139,8 +139,8 @@ export async function getDraftDetail(draftId: string): Promise<DraftDetailRecord
   if (draft.status === "rejected") {
     auditTrail.push({
       eventId: `${draftId}-rejected`,
-      label: "Draft rejected",
-      detail: draft.reviewNote ?? "Draft was rejected.",
+      label: "草稿已驳回",
+      detail: draft.reviewNote ?? "草稿已被驳回。",
       timestamp: draft.updatedAt,
       tone: "danger",
     });
@@ -149,8 +149,8 @@ export async function getDraftDetail(draftId: string): Promise<DraftDetailRecord
   if (draft.status === "in_review") {
     auditTrail.push({
       eventId: `${draftId}-reviewed`,
-      label: "Review started",
-      detail: draft.reviewNote ?? "Draft entered review.",
+      label: "审核已开始",
+      detail: draft.reviewNote ?? "草稿已进入审核。",
       timestamp: draft.updatedAt,
       tone: "warning",
     });
@@ -159,10 +159,10 @@ export async function getDraftDetail(draftId: string): Promise<DraftDetailRecord
   for (const exportRecord of draftExports) {
     auditTrail.push({
       eventId: `export-${exportRecord.exportId}`,
-      label: exportRecord.success ? "Export succeeded" : "Export failed",
+      label: exportRecord.success ? "导出成功" : "导出失败",
       detail: exportRecord.success
-        ? `Exported by ${exportRecord.exportedBy} to ${exportRecord.destinationPath}.`
-        : `Export by ${exportRecord.exportedBy} failed: ${exportRecord.errorMessage}`,
+        ? `${exportRecord.exportedBy} 已导出到 ${exportRecord.destinationPath}。`
+        : `${exportRecord.exportedBy} 导出失败：${exportRecord.errorMessage}`,
       timestamp: exportRecord.createdAt,
       tone: exportRecord.success ? "success" : "danger",
     });

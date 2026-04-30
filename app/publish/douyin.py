@@ -4,7 +4,6 @@ from __future__ import annotations
 from typing import Any
 
 from app.publish.base import BasePublisher, PublishResult
-from app.utils.time import utc_now
 
 
 class DouyinPublisher(BasePublisher):
@@ -27,13 +26,12 @@ class DouyinPublisher(BasePublisher):
     ) -> PublishResult:
         # TODO: integrate with Douyin open API
         return PublishResult(
-            success=True,
+            success=False,
             platform=self.platform_name,
             external_id=None,
             external_url=None,
             error_message="stub: not yet integrated with Douyin API",
             metadata=metadata or {},
-            published_at=utc_now(),
         )
 
     def check_status(self, external_id: str) -> PublishResult:

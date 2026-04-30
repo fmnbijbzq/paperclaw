@@ -4,21 +4,21 @@ export default function DraftDetailLoading() {
   return (
     <div className="space-y-6 lg:space-y-8">
       <LoadingPanel
-        eyebrow="Draft detail"
-        title="Loading editorial draft context"
-        description="Resolving the requested draft, its paper source, and export history for the detail view."
+        eyebrow="草稿详情"
+        title="正在读取编辑草稿上下文"
+        description="正在解析指定草稿、论文来源和导出历史。"
         cardCount={2}
       />
       <LoadingPanel
-        eyebrow="Draft content"
-        title="Preparing markdown preview and audit trail"
-        description="Loading the generated markdown content and activity timeline."
+        eyebrow="草稿内容"
+        title="正在准备 Markdown 预览和审计轨迹"
+        description="正在读取生成内容和活动时间线。"
         cardCount={2}
       />
       <LoadingPanel
-        eyebrow="Export history"
-        title="Collecting export attempts"
-        description="Fetching export records associated with this editorial draft."
+        eyebrow="导出历史"
+        title="正在收集导出尝试"
+        description="正在获取与该编辑草稿关联的导出记录。"
         cardCount={2}
       />
     </div>

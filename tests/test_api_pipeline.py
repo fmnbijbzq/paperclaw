@@ -6,12 +6,11 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from fastapi.testclient import TestClient
-
 from app.api.app import create_app
 from app.schemas import PaperRecord
 from app.storage import Database
 from app.summarization.schemas import PaperInsightRecord
+from tests.api_client import ASGITestClient
 
 
 def _build_paper(source_paper_id: str, title: str, source: str) -> PaperRecord:
@@ -73,7 +72,7 @@ def _seed_pipeline_state(tmp_path: Path) -> None:
 
 def test_pipeline_summary_returns_metrics_stages_and_source_health(tmp_path):
     _seed_pipeline_state(tmp_path)
-    client = TestClient(
+    client = ASGITestClient(
         create_app(
             database_url=f"sqlite:///{tmp_path/'papers.db'}",
             editorial_root=tmp_path / "outputs" / "editorial",
@@ -105,7 +104,7 @@ def test_pipeline_summary_returns_metrics_stages_and_source_health(tmp_path):
 
 def test_crawl_runs_endpoint_returns_run_list(tmp_path):
     _seed_pipeline_state(tmp_path)
-    client = TestClient(
+    client = ASGITestClient(
         create_app(
             database_url=f"sqlite:///{tmp_path/'papers.db'}",
             editorial_root=tmp_path / "outputs" / "editorial",
@@ -141,7 +140,7 @@ def test_crawl_runs_endpoint_returns_run_list(tmp_path):
 
 def test_crawl_runs_endpoint_filters_by_source(tmp_path):
     _seed_pipeline_state(tmp_path)
-    client = TestClient(
+    client = ASGITestClient(
         create_app(
             database_url=f"sqlite:///{tmp_path/'papers.db'}",
             editorial_root=tmp_path / "outputs" / "editorial",
@@ -166,7 +165,7 @@ def test_summarization_runs_endpoint_returns_run_list(tmp_path):
     run2 = db.start_summarization_run()
     db.finish_summarization_run(run2.run_id, status="failed", papers_processed=5, insights_generated=3, error_message="timeout")
 
-    client = TestClient(
+    client = ASGITestClient(
         create_app(
             database_url=f"sqlite:///{tmp_path/'papers.db'}",
             editorial_root=tmp_path / "outputs" / "editorial",
@@ -196,7 +195,7 @@ def test_editorial_runs_endpoint_returns_run_list(tmp_path):
     run2 = db.start_editorial_run()
     db.finish_editorial_run(run2.run_id, status="failed", papers_processed=1, drafts_generated=2, error_message="template error")
 
-    client = TestClient(
+    client = ASGITestClient(
         create_app(
             database_url=f"sqlite:///{tmp_path/'papers.db'}",
             editorial_root=tmp_path / "outputs" / "editorial",
@@ -232,7 +231,7 @@ def test_pipeline_summary_counts_database_backed_drafts_without_filesystem_scan(
     stray_file.parent.mkdir(parents=True, exist_ok=True)
     stray_file.write_text("# stray file\n", encoding="utf-8")
 
-    client = TestClient(
+    client = ASGITestClient(
         create_app(
             database_url=f"sqlite:///{tmp_path/'papers.db'}",
             editorial_root=tmp_path / "outputs" / "editorial",

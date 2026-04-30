@@ -6,16 +6,16 @@ _ROOT = Path(__file__).resolve().parents[1]
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from fastapi.testclient import TestClient
 from app.api.app import create_app
 from app.schemas import PaperRecord
 from app.storage import Database
+from tests.api_client import ASGITestClient
 
 
 def test_list_destinations_empty(tmp_path):
     db_path = tmp_path / "papers.db"
     app = create_app(database_url=f"sqlite:///{db_path}")
-    client = TestClient(app)
+    client = ASGITestClient(app)
 
     resp = client.get("/destinations")
     assert resp.status_code == 200
@@ -38,7 +38,7 @@ def test_create_and_list_destinations(tmp_path):
     )
 
     app = create_app(database_url=f"sqlite:///{db_path}")
-    client = TestClient(app)
+    client = ASGITestClient(app)
 
     # POST /destinations
     resp = client.post("/destinations", json={
@@ -96,7 +96,7 @@ def test_create_destination_via_manual_publish_result(tmp_path):
     )
 
     app = create_app(database_url=f"sqlite:///{db_path}")
-    client = TestClient(app)
+    client = ASGITestClient(app)
 
     # Record a manual publish
     resp = client.post("/destinations", json={

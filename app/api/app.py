@@ -39,7 +39,7 @@ def create_app(*, database_url: str | None = None, editorial_root: Path | None =
         )
 
     @app.get("/health")
-    def health() -> dict:
+    async def health() -> dict:
         return create_envelope(HealthResponse(status="ok")).model_dump(by_alias=True)
 
     app.include_router(papers_router)

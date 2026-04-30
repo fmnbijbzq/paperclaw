@@ -12,19 +12,19 @@ interface DraftFilterFormProps {
 }
 
 const statusOptions: Array<{ value: DraftStatus | "all"; label: string }> = [
-  { value: "all", label: "All statuses" },
-  { value: "generated", label: "Generated" },
-  { value: "in_review", label: "In review" },
-  { value: "approved", label: "Approved" },
-  { value: "rejected", label: "Rejected" },
-  { value: "exported", label: "Exported" },
+  { value: "all", label: "全部状态" },
+  { value: "generated", label: "已生成" },
+  { value: "in_review", label: "审核中" },
+  { value: "approved", label: "已批准" },
+  { value: "rejected", label: "已驳回" },
+  { value: "exported", label: "已导出" },
 ];
 
 const platformOptions: Array<{ value: EditorialPlatform | "all"; label: string }> = [
-  { value: "all", label: "All platforms" },
-  { value: "bilibili", label: "Bilibili" },
-  { value: "xiaohongshu", label: "Xiaohongshu" },
-  { value: "douyin", label: "Douyin" },
+  { value: "all", label: "全部平台" },
+  { value: "bilibili", label: "哔哩哔哩" },
+  { value: "xiaohongshu", label: "小红书" },
+  { value: "douyin", label: "抖音" },
 ];
 
 export function DraftFilterForm({ initialStatus, initialPlatform }: DraftFilterFormProps) {
@@ -56,7 +56,7 @@ export function DraftFilterForm({ initialStatus, initialPlatform }: DraftFilterF
   return (
     <div className="flex flex-wrap items-center gap-3">
       <label htmlFor="draft-status-filter" className="sr-only">
-        Filter by status
+        按状态筛选
       </label>
       <select
         id="draft-status-filter"
@@ -72,7 +72,7 @@ export function DraftFilterForm({ initialStatus, initialPlatform }: DraftFilterF
       </select>
 
       <label htmlFor="draft-platform-filter" className="sr-only">
-        Filter by platform
+        按平台筛选
       </label>
       <select
         id="draft-platform-filter"
@@ -89,7 +89,7 @@ export function DraftFilterForm({ initialStatus, initialPlatform }: DraftFilterF
 
       {isPending && (
         <div className="inline-flex items-center gap-2 rounded-full border border-[rgba(96,165,250,0.22)] bg-[rgba(96,165,250,0.12)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">
-          Filtering
+          筛选中
         </div>
       )}
     </div>

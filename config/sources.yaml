@@ -2,7 +2,7 @@ arxiv:
   enabled: true
   categories:
     - cs.CV
-  lookback_days: 2
+  lookback_days: 1095
   priority: 100
   rate_limit: 1
 
@@ -12,7 +12,7 @@ openreview:
     - CVPR
     - ICCV
     - ECCV
-  lookback_days: 3
+  lookback_days: 1095
   priority: 90
   rate_limit: 1
 
@@ -22,7 +22,7 @@ cvf:
     - CVPR
     - ICCV
     - ECCV
-  lookback_days: 7
+  lookback_days: 1095
   year: 2026
   max_results: 100
   priority: 80

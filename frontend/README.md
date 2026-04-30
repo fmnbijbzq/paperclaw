@@ -44,16 +44,20 @@ npm run start          # serves on http://localhost:3000
 The frontend reads its data source configuration from the browser at runtime.
 By default it uses the **demo** data source (no backend required).
 
-To connect to the live backend API, set the following environment variable
-before building or running:
+To connect to the live backend API, set either of the following environment
+variables before building or running:
 
 ```bash
 # .env.local (in the frontend/ directory)
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+
+# Equivalent server-side configuration
+PAPERCLAW_DATA_SOURCE=http
+PAPERCLAW_API_BASE_URL=http://localhost:8000
 ```
 
-When `NEXT_PUBLIC_API_BASE_URL` is not set the app falls back to demo data,
-so you can explore the UI without the Python backend running.
+When no API base URL is set the app falls back to demo data, so you can explore
+the UI without the Python backend running.
 
 ## Cache Management (`.next` directory)
 

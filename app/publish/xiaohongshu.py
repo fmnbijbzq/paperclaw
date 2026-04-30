@@ -4,7 +4,6 @@ from __future__ import annotations
 from typing import Any
 
 from app.publish.base import BasePublisher, PublishResult
-from app.utils.time import utc_now
 
 
 class XiaohongshuPublisher(BasePublisher):
@@ -27,13 +26,12 @@ class XiaohongshuPublisher(BasePublisher):
     ) -> PublishResult:
         # TODO: integrate with Xiaohongshu API / automation
         return PublishResult(
-            success=True,
+            success=False,
             platform=self.platform_name,
             external_id=None,
             external_url=None,
             error_message="stub: not yet integrated with Xiaohongshu API",
             metadata=metadata or {},
-            published_at=utc_now(),
         )
 
     def check_status(self, external_id: str) -> PublishResult:

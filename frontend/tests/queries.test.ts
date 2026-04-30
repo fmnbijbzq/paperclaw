@@ -71,7 +71,7 @@ test("draft queries expose filters, detail joins, and export audit visibility", 
     ["106-douyin", "101-xiaohongshu"],
   );
   assert.equal(detail?.draft.paper.paperId, 101);
-  assert.ok(detail?.auditTrail.some((event) => event.label === "Export succeeded"));
+  assert.ok(detail?.auditTrail.some((event) => event.label === "导出成功"));
   assert.equal(detail?.exportHistory[0]?.success, true);
   assert.equal(exportRows[0]?.draftTitle, "机器人视觉故障排查终于有索引了");
 });

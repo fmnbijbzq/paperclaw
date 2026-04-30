@@ -9,7 +9,7 @@ router = APIRouter(tags=["notifications"])
 
 
 @router.get("/notifications")
-def get_notifications(request: Request) -> dict:
+async def get_notifications(request: Request) -> dict:
     items = list_notification_feed(request.app.state.db)
     failed_count = sum(1 for item in items if not item.notification.success)
     successful_count = sum(1 for item in items if item.notification.success)
@@ -23,7 +23,7 @@ def get_notifications(request: Request) -> dict:
 
 
 @router.post("/notifications/retry")
-def retry_notification_route(request: Request, body: NotificationRetryRequest) -> dict:
+async def retry_notification_route(request: Request, body: NotificationRetryRequest) -> dict:
     if not body.notification_ids and not body.paper_ids:
         raise HTTPException(status_code=400, detail="notificationIds or paperIds is required")
     try:

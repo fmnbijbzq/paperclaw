@@ -106,7 +106,9 @@ def test_arxiv_source_includes_lookback_window_in_query():
 
     source.fetch()
 
-    assert "lastUpdatedDate%3A%5B" in captured_request["url"]
+    assert "submittedDate%3A%5B" in captured_request["url"]
+    assert "TO+%2A" not in captured_request["url"]
+    assert "TO%20%2A" not in captured_request["url"]
 
 
 def test_arxiv_source_sorts_by_latest_submitted_date_by_default():

@@ -12,12 +12,12 @@ interface AppErrorProps {
 export default function AppError({ error, reset }: AppErrorProps) {
   return (
     <ErrorPanel
-      title="This route could not finish loading"
-      description="The companion console hit an unexpected problem while resolving this view. The underlying backend and demo dataset have not been modified."
-      detail={error.digest ? `Reference: ${error.digest}` : "Try the route again or return to the dashboard overview."}
+      title="当前页面加载失败"
+      description="控制台在解析该视图时遇到异常，后端数据和演示数据集没有被修改。"
+      detail={error.digest ? `错误引用：${error.digest}` : "请重试当前页面，或返回仪表盘概览。"}
       onRetry={reset}
       actionHref="/"
-      actionLabel="Back to dashboard"
+      actionLabel="返回仪表盘"
     />
   );
 }

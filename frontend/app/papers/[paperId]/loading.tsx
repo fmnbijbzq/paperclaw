@@ -4,21 +4,21 @@ export default function PaperDetailLoading() {
   return (
     <div className="space-y-6 lg:space-y-8">
       <LoadingPanel
-        eyebrow="Paper detail"
-        title="Loading paper context and insight state"
-        description="Resolving the requested paper record, notification history, and editorial drafts for the detail view."
+        eyebrow="论文详情"
+        title="正在读取论文上下文和洞察状态"
+        description="正在解析指定论文、通知历史和编辑草稿。"
         cardCount={2}
       />
       <LoadingPanel
-        eyebrow="Insight summaries"
-        title="Preparing the attached analysis panels"
-        description="Hydrating short summary, long summary, novelty points, limitations, and applications."
+        eyebrow="洞察摘要"
+        title="正在准备分析面板"
+        description="正在加载短摘要、长摘要、创新点、局限和应用方向。"
         cardCount={3}
       />
       <LoadingPanel
-        eyebrow="Downstream activity"
-        title="Collecting delivery and editorial history"
-        description="Joining recent notification attempts with platform-specific content artifacts."
+        eyebrow="下游活动"
+        title="正在收集通知和编辑历史"
+        description="正在合并近期通知尝试和平台草稿。"
         cardCount={2}
       />
     </div>

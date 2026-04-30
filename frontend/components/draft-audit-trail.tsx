@@ -12,7 +12,7 @@ interface DraftAuditTrailProps {
 
 export function DraftAuditTrail({ events }: DraftAuditTrailProps) {
   if (events.length === 0) {
-    return <p className="text-sm subtle-copy">No audit events recorded.</p>;
+    return <p className="text-sm subtle-copy">暂无审计事件。</p>;
   }
 
   return (
