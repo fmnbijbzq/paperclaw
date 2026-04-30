@@ -32,7 +32,7 @@ export async function generateMetadata({ params }: DraftDetailPageProps): Promis
   const record = await getDraftDetail(draftId);
 
   return {
-    title: record ? `${record.draft.title} · Paperclaw Console` : "Draft not found · Paperclaw Console",
+    title: record ? `${record.draft.title} · Paperclaw 控制台` : "未找到草稿 · Paperclaw 控制台",
   };
 }
 
@@ -43,16 +43,16 @@ export default async function DraftDetailPage({ params }: DraftDetailPageProps) 
   if (!record) {
     return (
       <EmptyState
-        eyebrow="Draft detail"
-        title="Draft not found"
-        description="The requested draft does not exist in the current dataset. In a live integration this view would map directly to a backend draft lookup."
+        eyebrow="草稿详情"
+        title="未找到草稿"
+        description="当前数据集中不存在请求的草稿。实时集成时，该视图会直接映射到后端草稿查询。"
         actionHref="/drafts"
-        actionLabel="Back to drafts"
+        actionLabel="返回草稿列表"
       />
     );
   }
 
-  const { draft, exportHistory, auditTrail } = record;
+  const { draft } = record;
 
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -64,7 +64,7 @@ export default async function DraftDetailPage({ params }: DraftDetailPageProps) 
             className="inline-flex items-center gap-2 rounded-full border border-[color:var(--border-subtle)] bg-[rgba(15,23,42,0.6)] px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:border-[color:var(--accent-blue)]"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
-            Back to drafts
+            返回草稿列表
           </Link>
           <StatusBadge label={formatPlatform(draft.platform)} tone="info" />
           <StatusBadge label={formatDraftStatus(draft.status)} tone={getDraftStatusTone(draft.status)} />
@@ -77,7 +77,7 @@ export default async function DraftDetailPage({ params }: DraftDetailPageProps) 
           <article className="rounded-[1.2rem] border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">
               <FileText className="h-4 w-4" aria-hidden="true" />
-              Paper
+              论文
             </p>
             <p className="mt-3 text-sm text-white">{draft.paper.title}</p>
             <p className="mt-1 text-xs subtle-copy">{formatSource(draft.paper.source)} · {draft.paper.venue}</p>
@@ -85,23 +85,23 @@ export default async function DraftDetailPage({ params }: DraftDetailPageProps) 
           <article className="rounded-[1.2rem] border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
             <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-amber)]">
               <User className="h-4 w-4" aria-hidden="true" />
-              Assignee
+              负责人
             </p>
-            <p className="mt-3 text-sm text-white">{draft.assignee ?? "Unassigned"}</p>
+            <p className="mt-3 text-sm text-white">{draft.assignee ?? "未分配"}</p>
           </article>
           <article className="rounded-[1.2rem] border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">Last Updated</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">最后更新</p>
             <p className="mt-3 text-sm text-white">{formatDateTime(draft.updatedAt)}</p>
           </article>
           <article className="rounded-[1.2rem] border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">Output Path</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">输出路径</p>
             <p className="mt-3 text-xs text-white break-all">{draft.outputPath}</p>
           </article>
         </div>
 
         {draft.reviewNote && (
           <div className="mt-4 rounded-[1.2rem] border border-[rgba(245,158,11,0.22)] bg-[rgba(245,158,11,0.08)] p-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-amber)]">Review Note</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-amber)]">审核备注</p>
             <p className="mt-2 text-sm text-white">{draft.reviewNote}</p>
           </div>
         )}
@@ -109,12 +109,12 @@ export default async function DraftDetailPage({ params }: DraftDetailPageProps) 
 
       {/* Content */}
       <SectionCard
-        eyebrow="Draft content"
-        title="Markdown preview"
-        description="The generated markdown content for this editorial draft."
+        eyebrow="草稿内容"
+        title="Markdown 预览"
+        description="该编辑草稿生成的 Markdown 内容。"
       >
         <div className="prose prose-invert max-w-none rounded-[1.2rem] border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.6)] p-5">
-          <pre className="whitespace-pre-wrap text-sm text-white/90">{draft.markdownContent || "No content available."}</pre>
+          <pre className="whitespace-pre-wrap text-sm text-white/90">{draft.markdownContent || "暂无可用内容。"}</pre>
         </div>
       </SectionCard>
     </div>

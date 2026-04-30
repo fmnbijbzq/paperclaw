@@ -28,8 +28,8 @@ export function InsightPanel({ title, body, items }: InsightPanelProps) {
       {!body && !hasItems ? (
         <EmptyState
           compact
-          title="Insight pending"
-          description="Insight generation has not produced content for this section yet."
+          title="洞察待生成"
+          description="此部分尚未生成洞察内容。"
         />
       ) : null}
     </SectionCard>

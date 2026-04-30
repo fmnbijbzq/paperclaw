@@ -9,13 +9,13 @@ import { getDashboardSnapshot, getPipelineRunsSnapshot } from "@/lib/queries";
 
 const extensionPoints = [
   {
-    title: "Approval workflow",
-    detail: "Introduce review states and ownership for editorial artifacts before export.",
+    title: "审批工作流",
+    detail: "在导出前为编辑产物引入审核状态和负责人归属。",
     tone: "info" as const,
   },
   {
-    title: "Destination audit trail",
-    detail: "Track multi-channel publish/export outcomes beyond Feishu bot delivery status.",
+    title: "目标端审计轨迹",
+    detail: "除飞书机器人投递状态外，继续追踪多渠道发布和导出结果。",
     tone: "warning" as const,
   },
 ];
@@ -29,50 +29,50 @@ export default async function PipelinePage() {
   return (
     <div className="space-y-6 lg:space-y-8">
       <section className="panel-card rounded-[2rem] px-6 py-7 sm:px-8 sm:py-9">
-        <p className="eyebrow">Pipeline map</p>
-        <h1 className="section-title mt-3 text-4xl font-semibold text-white sm:text-5xl">From fetch to export, with implementation boundaries visible</h1>
+        <p className="eyebrow">流水线图谱</p>
+        <h1 className="section-title mt-3 text-4xl font-semibold text-white sm:text-5xl">从抓取到导出，清晰呈现实现边界</h1>
         <p className="mt-4 max-w-3xl text-base subtle-copy sm:text-lg">
-          The frontend is deliberately aligned to the current Python scripts so future API integration can replace demo data without changing the interaction model.
+          前端刻意对齐当前 Python 脚本，因此未来 API 集成可以替换演示数据，而无需改变交互模型。
         </p>
       </section>
 
       <SectionCard
-        eyebrow="Current stages"
-        title="What Paperclaw already does"
-        description="Each stage references concrete backend files and keeps the UI grounded in the existing codebase rather than an imagined product roadmap."
+        eyebrow="当前阶段"
+        title="Paperclaw 已经完成的能力"
+        description="每个阶段都引用具体后端文件，让界面扎根于现有代码库，而不是假想的产品路线图。"
       >
         {snapshot.pipelineStages.length > 0 ? (
           <PipelineTimeline stages={snapshot.pipelineStages} />
         ) : (
           <EmptyState
             compact
-            title="No pipeline stages returned"
-            description="This page is ready for live stage data once the backend-facing data source is introduced."
+            title="未返回流水线阶段"
+            description="面向后端的数据源接入后，本页面即可展示实时阶段数据。"
           />
         )}
       </SectionCard>
 
       <SectionCard
-        eyebrow="Run history"
-        title="Crawl runs"
-        description="Recent crawl execution records showing source, timing, success/failure, and fetch counts."
+        eyebrow="运行历史"
+        title="爬取运行"
+        description="近期爬取执行记录，展示来源、时间、成功/失败状态和抓取数量。"
       >
         <CrawlRunList runs={runs.crawlRuns} />
       </SectionCard>
 
       <div className="grid gap-6 xl:grid-cols-2">
         <SectionCard
-          eyebrow="Run history"
-          title="Summarization runs"
-          description="Tracks how many papers were processed and how many insights were generated per run."
+          eyebrow="运行历史"
+          title="摘要运行"
+          description="追踪每次运行处理了多少论文，并生成了多少洞察。"
         >
           <SummarizationRunList runs={runs.summarizationRuns} />
         </SectionCard>
 
         <SectionCard
-          eyebrow="Run history"
-          title="Editorial runs"
-          description="Records editorial draft generation runs with paper and draft counts."
+          eyebrow="运行历史"
+          title="编辑运行"
+          description="记录编辑草稿生成运行，并展示论文和草稿数量。"
         >
           <EditorialRunList runs={runs.editorialRuns} />
         </SectionCard>
@@ -80,39 +80,39 @@ export default async function PipelinePage() {
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(24rem,0.9fr)]">
         <SectionCard
-          eyebrow="Operational interpretation"
-          title="How this console frames the workflow"
-          description="These panels explain how the frontend turns script outputs into operator-friendly status surfaces."
+          eyebrow="运营解读"
+          title="控制台如何组织工作流"
+          description="这些面板说明前端如何将脚本输出转化为对操作者友好的状态界面。"
         >
           <div className="grid gap-4 md:grid-cols-3">
             <article className="rounded-[1.4rem] border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
               <CheckCircle2 className="h-5 w-5 text-[color:var(--accent-green)]" aria-hidden="true" />
-              <h2 className="mt-4 text-lg font-semibold text-white">Stored first</h2>
+              <h2 className="mt-4 text-lg font-semibold text-white">先入库存储</h2>
               <p className="mt-2 text-sm subtle-copy">
-                Persistence and enrichment are visible even when downstream delivery fails.
+                即使下游投递失败，持久化和富化结果仍然可见。
               </p>
             </article>
             <article className="rounded-[1.4rem] border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
               <Clock3 className="h-5 w-5 text-[color:var(--accent-amber)]" aria-hidden="true" />
-              <h2 className="mt-4 text-lg font-semibold text-white">Retries stay inspectable</h2>
+              <h2 className="mt-4 text-lg font-semibold text-white">重试保持可检查</h2>
               <p className="mt-2 text-sm subtle-copy">
-                Failed notification attempts remain first-class records instead of disappearing into logs.
+                失败的通知尝试会保留为一等记录，而不是消失在日志里。
               </p>
             </article>
             <article className="rounded-[1.4rem] border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
               <Sparkles className="h-5 w-5 text-[color:var(--accent-blue)]" aria-hidden="true" />
-              <h2 className="mt-4 text-lg font-semibold text-white">Editorial outputs are inventory</h2>
+              <h2 className="mt-4 text-lg font-semibold text-white">编辑产出即库存</h2>
               <p className="mt-2 text-sm subtle-copy">
-                Generated markdown is surfaced as reviewable product inventory, not just files on disk.
+                已生成的 Markdown 会作为可审核的产品库存展示，而不只是磁盘上的文件。
               </p>
             </article>
           </div>
         </SectionCard>
 
         <SectionCard
-          eyebrow="Extension points"
-          title="What the next frontend iteration could own"
-          description="Areas where UI-driven workflow would add value once backend APIs and state transitions are exposed."
+          eyebrow="扩展点"
+          title="下一轮前端迭代可承接的部分"
+          description="当后端 API 和状态转换开放后，这些区域可以通过界面驱动的工作流继续增值。"
         >
           <div className="space-y-4">
             {extensionPoints.map((item) => (

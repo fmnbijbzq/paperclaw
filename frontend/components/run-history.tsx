@@ -93,7 +93,7 @@ export function CrawlRunList({ runs }: CrawlRunListProps) {
     return (
       <div className="rounded-[1.2rem] border border-dashed border-[rgba(96,165,250,0.24)] bg-[rgba(7,17,31,0.36)] px-6 py-8 text-center">
         <Activity className="mx-auto h-5 w-5 text-[color:var(--text-dim)]" aria-hidden="true" />
-        <p className="mt-3 text-sm subtle-copy">No crawl runs recorded yet.</p>
+        <p className="mt-3 text-sm subtle-copy">暂无爬取运行记录。</p>
       </div>
     );
   }
@@ -103,7 +103,7 @@ export function CrawlRunList({ runs }: CrawlRunListProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4 text-sm">
-        <span className="subtle-copy">Success rate:</span>
+        <span className="subtle-copy">成功率：</span>
         <SuccessRate total={runs.length} successes={successCount} />
       </div>
       <ol className="space-y-3">
@@ -115,9 +115,9 @@ export function CrawlRunList({ runs }: CrawlRunListProps) {
             durationSeconds={run.durationSeconds}
             errorMessage={run.errorMessage}
           >
-            <StatPill label="Source" value={formatSource(run.source)} />
-            <StatPill label="Fetched" value={run.fetchedCount} />
-            <StatPill label="New" value={run.newCount} />
+            <StatPill label="来源" value={formatSource(run.source)} />
+            <StatPill label="已抓取" value={run.fetchedCount} />
+            <StatPill label="新增" value={run.newCount} />
           </RunRow>
         ))}
       </ol>
@@ -134,7 +134,7 @@ export function SummarizationRunList({ runs }: SummarizationRunListProps) {
     return (
       <div className="rounded-[1.2rem] border border-dashed border-[rgba(96,165,250,0.24)] bg-[rgba(7,17,31,0.36)] px-6 py-8 text-center">
         <Layers className="mx-auto h-5 w-5 text-[color:var(--text-dim)]" aria-hidden="true" />
-        <p className="mt-3 text-sm subtle-copy">No summarization runs recorded yet.</p>
+        <p className="mt-3 text-sm subtle-copy">暂无洞察生成运行记录。</p>
       </div>
     );
   }
@@ -144,7 +144,7 @@ export function SummarizationRunList({ runs }: SummarizationRunListProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4 text-sm">
-        <span className="subtle-copy">Success rate:</span>
+        <span className="subtle-copy">成功率：</span>
         <SuccessRate total={runs.length} successes={successCount} />
       </div>
       <ol className="space-y-3">
@@ -156,8 +156,8 @@ export function SummarizationRunList({ runs }: SummarizationRunListProps) {
             durationSeconds={run.durationSeconds}
             errorMessage={run.errorMessage}
           >
-            <StatPill label="Papers" value={run.papersProcessed} />
-            <StatPill label="Insights" value={run.insightsGenerated} />
+            <StatPill label="论文" value={run.papersProcessed} />
+            <StatPill label="洞察" value={run.insightsGenerated} />
           </RunRow>
         ))}
       </ol>
@@ -174,7 +174,7 @@ export function EditorialRunList({ runs }: EditorialRunListProps) {
     return (
       <div className="rounded-[1.2rem] border border-dashed border-[rgba(96,165,250,0.24)] bg-[rgba(7,17,31,0.36)] px-6 py-8 text-center">
         <FileText className="mx-auto h-5 w-5 text-[color:var(--text-dim)]" aria-hidden="true" />
-        <p className="mt-3 text-sm subtle-copy">No editorial runs recorded yet.</p>
+        <p className="mt-3 text-sm subtle-copy">暂无编辑运行记录。</p>
       </div>
     );
   }
@@ -184,7 +184,7 @@ export function EditorialRunList({ runs }: EditorialRunListProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-4 text-sm">
-        <span className="subtle-copy">Success rate:</span>
+        <span className="subtle-copy">成功率：</span>
         <SuccessRate total={runs.length} successes={successCount} />
       </div>
       <ol className="space-y-3">
@@ -196,8 +196,8 @@ export function EditorialRunList({ runs }: EditorialRunListProps) {
             durationSeconds={run.durationSeconds}
             errorMessage={run.errorMessage}
           >
-            <StatPill label="Papers" value={run.papersProcessed} />
-            <StatPill label="Drafts" value={run.draftsGenerated} />
+            <StatPill label="论文" value={run.papersProcessed} />
+            <StatPill label="草稿" value={run.draftsGenerated} />
           </RunRow>
         ))}
       </ol>

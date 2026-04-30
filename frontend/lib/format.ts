@@ -1,26 +1,27 @@
-import type { DraftStatus, EditorialPlatform, PaperSource } from "./types";
+import type { DraftStatus, EditorialPlatform, HealthStatus, PaperSource, StageStatus } from "./types";
 
-const compactNumberFormatter = new Intl.NumberFormat("en", {
+const compactNumberFormatter = new Intl.NumberFormat("zh-CN", {
   notation: "compact",
   maximumFractionDigits: 1,
 });
 
-const shortDateFormatter = new Intl.DateTimeFormat("en", {
+const shortDateFormatter = new Intl.DateTimeFormat("zh-CN", {
   month: "short",
   day: "numeric",
 });
 
-const fullDateFormatter = new Intl.DateTimeFormat("en", {
+const fullDateFormatter = new Intl.DateTimeFormat("zh-CN", {
   month: "short",
   day: "numeric",
   year: "numeric",
 });
 
-const dateTimeFormatter = new Intl.DateTimeFormat("en", {
+const dateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
   month: "short",
   day: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  hour12: false,
 });
 
 export function formatCompactNumber(value: number): string {
@@ -51,9 +52,9 @@ export function formatSource(source: PaperSource): string {
 
 export function formatPlatform(platform: EditorialPlatform): string {
   const labels: Record<EditorialPlatform, string> = {
-    bilibili: "Bilibili",
-    xiaohongshu: "Xiaohongshu",
-    douyin: "Douyin",
+    bilibili: "哔哩哔哩",
+    xiaohongshu: "小红书",
+    douyin: "抖音",
   };
 
   return labels[platform];
@@ -61,11 +62,31 @@ export function formatPlatform(platform: EditorialPlatform): string {
 
 export function formatDraftStatus(status: DraftStatus): string {
   const labels: Record<DraftStatus, string> = {
-    generated: "Generated",
-    in_review: "In review",
-    approved: "Approved",
-    rejected: "Rejected",
-    exported: "Exported",
+    generated: "已生成",
+    in_review: "审核中",
+    approved: "已批准",
+    rejected: "已拒绝",
+    exported: "已导出",
+  };
+
+  return labels[status];
+}
+
+export function formatStageStatus(status: StageStatus): string {
+  const labels: Record<StageStatus, string> = {
+    live: "已上线",
+    partial: "部分可用",
+    planned: "计划中",
+  };
+
+  return labels[status];
+}
+
+export function formatHealthStatus(status: HealthStatus): string {
+  const labels: Record<HealthStatus, string> = {
+    healthy: "健康",
+    degraded: "异常",
+    attention: "需关注",
   };
 
   return labels[status];
@@ -80,18 +101,18 @@ export function formatDuration(seconds: number | null): string {
     return "—";
   }
   if (seconds < 60) {
-    return `${Math.round(seconds)}s`;
+    return `${Math.round(seconds)} 秒`;
   }
   const minutes = Math.floor(seconds / 60);
   const remainingSeconds = Math.round(seconds % 60);
-  return `${minutes}m ${remainingSeconds}s`;
+  return `${minutes} 分 ${remainingSeconds} 秒`;
 }
 
 export function formatRunStatus(status: string): string {
   const labels: Record<string, string> = {
-    running: "Running",
-    success: "Success",
-    failed: "Failed",
+    running: "运行中",
+    success: "成功",
+    failed: "失败",
   };
   return labels[status] ?? status;
 }

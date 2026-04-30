@@ -19,7 +19,7 @@ export async function generateMetadata({ params }: PaperDetailPageProps): Promis
   const record = await getPaperDetail(Number(paperId));
 
   return {
-    title: record ? `${record.paper.title} · Paperclaw Console` : "Paper not found · Paperclaw Console",
+    title: record ? `${record.paper.title} · Paperclaw 控制台` : "未找到论文 · Paperclaw 控制台",
   };
 }
 
@@ -30,11 +30,11 @@ export default async function PaperDetailPage({ params }: PaperDetailPageProps) 
   if (!Number.isInteger(parsedPaperId)) {
     return (
       <EmptyState
-        eyebrow="Paper detail"
-        title="Paper id is invalid"
-        description="The requested route segment is not a valid numeric paper id, so the companion app cannot resolve a detail record."
+        eyebrow="论文详情"
+        title="论文 ID 无效"
+        description="请求的路由片段不是有效的数字论文 ID，因此协同应用无法解析详情记录。"
         actionHref="/papers"
-        actionLabel="Back to papers"
+        actionLabel="返回论文列表"
       />
     );
   }
@@ -44,11 +44,11 @@ export default async function PaperDetailPage({ params }: PaperDetailPageProps) 
   if (!record) {
     return (
       <EmptyState
-        eyebrow="Paper detail"
-        title="Paper not found"
-        description="This demo dataset does not include the requested paper id. In a live integration this view would map directly to a backend paper lookup."
+        eyebrow="论文详情"
+        title="未找到论文"
+        description="演示数据集中不包含请求的论文 ID。在实时集成中，该视图会直接映射到后端论文查询。"
         actionHref="/papers"
-        actionLabel="Back to papers"
+        actionLabel="返回论文列表"
       />
     );
   }
@@ -64,37 +64,37 @@ export default async function PaperDetailPage({ params }: PaperDetailPageProps) 
       <PaperDetailHero record={record} />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
-        <InsightPanel title="Short summary" body={record.insight?.summaryShort} />
-        <InsightPanel title="Long summary" body={record.insight?.summaryLong} />
+        <InsightPanel title="短摘要" body={record.insight?.summaryShort} />
+        <InsightPanel title="长摘要" body={record.insight?.summaryLong} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <InsightPanel title="Novelty points" items={record.insight?.noveltyPoints} />
-        <InsightPanel title="Limitations" items={record.insight?.limitations} />
-        <InsightPanel title="Applications" items={record.insight?.applications} />
+        <InsightPanel title="创新点" items={record.insight?.noveltyPoints} />
+        <InsightPanel title="局限性" items={record.insight?.limitations} />
+        <InsightPanel title="应用场景" items={record.insight?.applications} />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)]">
         <SectionCard
-          eyebrow="Notification history"
-          title="Delivery attempts"
-          description="Matches the backend notification log model and makes retry causes visible."
+          eyebrow="通知历史"
+          title="投递尝试"
+          description="匹配后端通知日志模型，并让重试原因保持可见。"
         >
           {notificationRows.length > 0 ? (
             <NotificationTable rows={notificationRows} />
           ) : (
             <EmptyState
               compact
-              title="No notification attempts recorded"
-              description="Feishu delivery has not been attempted for this paper yet, so there is no retry history to inspect."
+              title="暂无通知尝试记录"
+              description="这篇论文尚未尝试飞书投递，因此没有可查看的重试历史。"
             />
           )}
         </SectionCard>
 
         <SectionCard
-          eyebrow="Editorial outputs"
-          title="Platform artifacts"
-          description="Preview of generated markdown content artifacts linked to this paper."
+          eyebrow="编辑产出"
+          title="平台产物"
+          description="预览与这篇论文关联的已生成 Markdown 内容产物。"
         >
           <div className="space-y-4">
             {record.editorialDrafts.length > 0 ? (
@@ -102,8 +102,8 @@ export default async function PaperDetailPage({ params }: PaperDetailPageProps) 
             ) : (
               <EmptyState
                 compact
-                title="No editorial artifacts attached"
-                description="Draft generation has not produced Bilibili, Xiaohongshu, or Douyin artifacts for this paper yet."
+                title="暂无关联编辑产物"
+                description="草稿生成尚未为这篇论文产出哔哩哔哩、小红书或抖音内容。"
               />
             )}
           </div>

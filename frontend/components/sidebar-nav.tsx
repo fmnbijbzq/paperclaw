@@ -9,38 +9,38 @@ import { cx } from "@/lib/utils";
 const navigationItems = [
   {
     href: "/",
-    label: "Overview",
-    description: "System state",
+    label: "概览",
+    description: "系统状态",
     icon: LayoutDashboard,
   },
   {
     href: "/papers",
-    label: "Papers",
-    description: "Research intake",
+    label: "论文",
+    description: "研究收录",
     icon: BookOpenText,
   },
   {
     href: "/pipeline",
-    label: "Pipeline",
-    description: "Editorial flow",
+    label: "流水线",
+    description: "编辑流程",
     icon: ChartColumnStacked,
   },
   {
     href: "/drafts",
-    label: "Drafts",
-    description: "Draft management",
+    label: "草稿",
+    description: "草稿管理",
     icon: FilePenLine,
   },
   {
     href: "/exports",
-    label: "Exports",
-    description: "Export history",
+    label: "导出",
+    description: "导出历史",
     icon: ArrowDownToLine,
   },
   {
     href: "/notifications",
-    label: "Notifications",
-    description: "Feishu delivery",
+    label: "通知",
+    description: "飞书投递",
     icon: BellRing,
   },
 ] as const;
@@ -53,9 +53,9 @@ export function SidebarNav() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <p className="eyebrow">Paperclaw</p>
-          <h1 className="section-title mt-2 text-2xl font-semibold text-white">Research Console</h1>
+          <h1 className="section-title mt-2 text-2xl font-semibold text-white">研究控制台</h1>
           <p className="mt-2 max-w-xs text-sm subtle-copy">
-            Standalone companion UI for paper discovery, insight review, editorial drafting, and notification health.
+            用于论文发现、洞察审核、编辑草稿和通知健康监控的独立协同界面。
           </p>
         </div>
         <span className="rounded-full border border-[color:var(--border-subtle)] bg-[rgba(15,23,42,0.62)] p-2 text-[color:var(--accent-blue)]">
@@ -63,7 +63,7 @@ export function SidebarNav() {
         </span>
       </div>
 
-      <nav aria-label="Primary" className="overflow-x-auto">
+      <nav aria-label="主导航" className="overflow-x-auto">
         <ul className="flex gap-3 lg:flex-col">
           {navigationItems.map((item) => {
             const Icon = item.icon;
@@ -104,10 +104,10 @@ export function SidebarNav() {
       </nav>
 
       <div className="panel-card mt-auto rounded-3xl p-4">
-        <p className="eyebrow">Design Direction</p>
-        <p className="mt-3 text-sm font-semibold text-white">Dark operations dashboard</p>
+        <p className="eyebrow">设计方向</p>
+        <p className="mt-3 text-sm font-semibold text-white">深色运营仪表盘</p>
         <p className="mt-2 text-sm subtle-copy">
-          Cool blue data surfaces, amber action emphasis, visible focus treatment, and high-density information panels.
+          冷蓝色数据界面、琥珀色操作强调、清晰焦点状态和高密度信息面板。
         </p>
       </div>
     </div>

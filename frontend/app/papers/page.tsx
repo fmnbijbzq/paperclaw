@@ -36,10 +36,10 @@ export default async function PapersPage({ searchParams }: PapersPageProps) {
   return (
     <div className="space-y-6 lg:space-y-8">
       <section className="panel-card rounded-[2rem] px-6 py-7 sm:px-8 sm:py-9">
-        <p className="eyebrow">Paper inventory</p>
-        <h1 className="section-title mt-3 text-4xl font-semibold text-white sm:text-5xl">Research intake across crawlers</h1>
+        <p className="eyebrow">论文库存</p>
+        <h1 className="section-title mt-3 text-4xl font-semibold text-white sm:text-5xl">跨爬虫研究收录</h1>
         <p className="mt-4 max-w-3xl text-base subtle-copy sm:text-lg">
-          Search and browse papers from arXiv, OpenReview, and CVF. Use the search bar and source filter to find specific papers.
+          搜索并浏览来自 arXiv、OpenReview 和 CVF 的论文。使用搜索框和来源筛选器查找特定论文。
         </p>
 
         <div className="mt-6">
@@ -50,12 +50,12 @@ export default async function PapersPage({ searchParams }: PapersPageProps) {
       </section>
 
       <SectionCard
-        eyebrow="Paper records"
-        title={query ? `${total} results for "${query}"` : `${total} papers in the current working set`}
+        eyebrow="论文记录"
+        title={query ? `${total} 条关于 "${query}" 的结果` : `当前工作集中有 ${total} 篇论文`}
         description={
           query
-            ? `Showing page ${page} of ${totalPages}. Results match title, author, venue, category, and summary content.`
-            : "Rows emphasize source, summary confidence, draft count, and notification state for high-density browsing."
+            ? `正在显示第 ${page} / ${totalPages} 页。结果会匹配标题、作者、会议、分类和摘要内容。`
+            : "行内容突出来源、摘要置信度、草稿数量和通知状态，适合高密度浏览。"
         }
       >
         {records.length > 0 ? (
@@ -68,23 +68,23 @@ export default async function PapersPage({ searchParams }: PapersPageProps) {
                     href={`/papers?${new URLSearchParams({ ...(query && { q: query }), ...(source !== "all" && { source }), page: String(page - 1) }).toString()}`}
                     className="action-button action-button-secondary"
                   >
-                    Previous
+                    上一页
                   </a>
                 ) : (
-                  <span className="action-button action-button-secondary pointer-events-none opacity-40">Previous</span>
+                  <span className="action-button action-button-secondary pointer-events-none opacity-40">上一页</span>
                 )}
                 <span className="text-sm subtle-copy">
-                  Page {page} of {totalPages}
+                  第 {page} / {totalPages} 页
                 </span>
                 {page < totalPages ? (
                   <a
                     href={`/papers?${new URLSearchParams({ ...(query && { q: query }), ...(source !== "all" && { source }), page: String(page + 1) }).toString()}`}
                     className="action-button action-button-secondary"
                   >
-                    Next
+                    下一页
                   </a>
                 ) : (
-                  <span className="action-button action-button-secondary pointer-events-none opacity-40">Next</span>
+                  <span className="action-button action-button-secondary pointer-events-none opacity-40">下一页</span>
                 )}
               </div>
             )}
@@ -92,11 +92,11 @@ export default async function PapersPage({ searchParams }: PapersPageProps) {
         ) : (
           <EmptyState
             compact
-            title={query ? "No papers match your search" : "No papers are available yet"}
+            title={query ? "没有匹配搜索条件的论文" : "暂无可用论文"}
             description={
               query
-                ? `No results found for "${query}". Try a different search term or adjust the source filter.`
-                : "When the repository returns paper records, they will render here with insight, delivery, and editorial context."
+                ? `未找到关于 "${query}" 的结果。请尝试其他搜索词或调整来源筛选器。`
+                : "仓库返回论文记录后，它们会连同洞察、投递和编辑上下文显示在这里。"
             }
           />
         )}

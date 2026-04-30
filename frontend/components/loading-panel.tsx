@@ -29,7 +29,7 @@ export function LoadingPanel({
         </div>
         <div className="inline-flex items-center gap-2 self-start rounded-full border border-[rgba(96,165,250,0.22)] bg-[rgba(96,165,250,0.12)] px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">
           <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading
+          加载中
         </div>
       </div>
 

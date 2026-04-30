@@ -15,9 +15,9 @@ export function PaperDetailHero({ record }: PaperDetailHeroProps) {
         <div className="max-w-4xl">
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge label={formatSource(record.paper.source)} tone="info" />
-            <StatusBadge label={record.insight ? "Insight ready" : "Insight pending"} tone={record.insight ? "success" : "neutral"} />
+            <StatusBadge label={record.insight ? "洞察已就绪" : "洞察待生成"} tone={record.insight ? "success" : "neutral"} />
             <StatusBadge
-              label={record.notifications[0]?.success ? "Delivered to Feishu" : record.notifications[0] ? "Retry pending" : "Not sent yet"}
+              label={record.notifications[0]?.success ? "已投递到飞书" : record.notifications[0] ? "等待重试" : "尚未发送"}
               tone={record.notifications[0]?.success ? "success" : record.notifications[0] ? "danger" : "warning"}
             />
           </div>
@@ -28,51 +28,51 @@ export function PaperDetailHero({ record }: PaperDetailHeroProps) {
             <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
               <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">
                 <Microscope className="h-4 w-4" aria-hidden="true" />
-                Venue
+                会议/期刊
               </dt>
               <dd className="mt-2 text-sm text-white">{record.paper.venue}</dd>
             </div>
             <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
               <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">
                 <FileText className="h-4 w-4" aria-hidden="true" />
-                Published
+                发表时间
               </dt>
               <dd className="mt-2 text-sm text-white">{formatFullDate(record.paper.publishedAt)}</dd>
             </div>
             <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
               <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">
                 <BrainCircuit className="h-4 w-4" aria-hidden="true" />
-                Confidence
+                置信度
               </dt>
               <dd className="mt-2 text-sm text-white">
-                {record.insight ? `${Math.round(record.insight.confidenceScore * 100)}% confidence` : "Insight not generated"}
+                {record.insight ? `${Math.round(record.insight.confidenceScore * 100)}% 置信度` : "未生成洞察"}
               </dd>
             </div>
             <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">
               <dt className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">
                 <BellRing className="h-4 w-4" aria-hidden="true" />
-                Drafts
+                草稿
               </dt>
-              <dd className="mt-2 text-sm text-white">{record.editorialDrafts.length} platform artifacts</dd>
+              <dd className="mt-2 text-sm text-white">{record.editorialDrafts.length} 个平台产物</dd>
             </div>
           </dl>
         </div>
 
         <div className="flex flex-col gap-3 xl:w-72">
           <a href={record.paper.paperUrl} target="_blank" rel="noreferrer" className="action-button action-button-primary">
-            Open abstract
+            打开摘要页
             <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
           </a>
           <a href={record.paper.pdfUrl} target="_blank" rel="noreferrer" className="action-button action-button-secondary">
-            Open PDF
+            打开 PDF
             <FileUp className="h-4 w-4" aria-hidden="true" />
           </a>
           <div className="rounded-[1.5rem] border border-[rgba(245,158,11,0.18)] bg-[rgba(245,158,11,0.08)] p-4">
-            <p className="text-sm font-semibold text-white">Editorial readiness</p>
+            <p className="text-sm font-semibold text-white">编辑就绪度</p>
             <p className="mt-2 text-sm subtle-copy">
               {record.editorialDrafts.length > 0
-                ? "Draft artifacts exist. Remaining work is review, export, and reliable downstream notification."
-                : "No draft artifacts are generated for this paper yet."}
+                ? "草稿产物已存在，剩余工作是审核、导出和可靠的下游通知。"
+                : "此论文尚未生成草稿产物。"}
             </p>
           </div>
         </div>

@@ -9,12 +9,12 @@ function getDeliveryTone(record: PaperRecord) {
   const latest = record.notifications[0];
 
   if (!latest) {
-    return { label: "Pending send", tone: "warning" as const };
+    return { label: "待发送", tone: "warning" as const };
   }
 
   return latest.success
-    ? { label: "Delivered", tone: "success" as const }
-    : { label: "Retry needed", tone: "danger" as const };
+    ? { label: "已投递", tone: "success" as const }
+    : { label: "需要重试", tone: "danger" as const };
 }
 
 interface PaperListProps {
@@ -38,12 +38,12 @@ export function PaperList({ records }: PaperListProps) {
                   <div className="flex flex-wrap items-center gap-2">
                     <StatusBadge label={formatSource(record.paper.source)} tone="info" />
                     <StatusBadge label={delivery.label} tone={delivery.tone} />
-                    <StatusBadge label={record.insight ? "Insight attached" : "Awaiting insight"} tone={record.insight ? "success" : "neutral"} />
+                    <StatusBadge label={record.insight ? "已附加洞察" : "等待洞察"} tone={record.insight ? "success" : "neutral"} />
                   </div>
                   <h3 className="mt-4 text-xl font-semibold text-white">{record.paper.title}</h3>
                   <p className="mt-2 text-sm subtle-copy">{record.paper.authors.join(", ")}</p>
                   <p className="mt-3 text-sm subtle-copy">
-                    {record.insight?.summaryShort ?? "Paper metadata is stored; insight generation has not completed yet."}
+                    {record.insight?.summaryShort ?? "论文元数据已存储；洞察生成尚未完成。"}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs">
                     {record.paper.categories.map((category) => (
@@ -60,23 +60,23 @@ export function PaperList({ records }: PaperListProps) {
                   <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-3">
                     <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">
                       <BrainCircuit className="h-4 w-4" aria-hidden="true" />
-                      Insight
+                      洞察
                     </p>
                     <p className="mt-3 text-sm text-white">
-                      {record.insight ? `${Math.round(record.insight.confidenceScore * 100)}% confidence` : "Not generated"}
+                      {record.insight ? `${Math.round(record.insight.confidenceScore * 100)}% 置信度` : "未生成"}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-3">
                     <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-amber)]">
                       <FilePenLine className="h-4 w-4" aria-hidden="true" />
-                      Drafts
+                      草稿
                     </p>
-                    <p className="mt-3 text-sm text-white">{record.editorialDrafts.length} artifacts</p>
+                    <p className="mt-3 text-sm text-white">{record.editorialDrafts.length} 个产物</p>
                   </div>
                   <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-3">
                     <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--accent-blue)]">
                       <BellRing className="h-4 w-4" aria-hidden="true" />
-                      Published
+                      发表时间
                     </p>
                     <p className="mt-3 text-sm text-white">{formatDate(record.paper.publishedAt)}</p>
                   </div>
@@ -87,7 +87,7 @@ export function PaperList({ records }: PaperListProps) {
                   {record.paper.venue} · {record.paper.paperUrl}
                 </span>
                 <span className="inline-flex items-center gap-2 font-semibold text-white">
-                  Open detail
+                  打开详情
                   <ArrowUpRight className="h-4 w-4 text-[color:var(--accent-amber)]" aria-hidden="true" />
                 </span>
               </div>
