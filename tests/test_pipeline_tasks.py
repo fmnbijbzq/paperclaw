@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.storage import Database
+from app.tasks.pipeline_tasks import PipelineTaskRunner
 
 
 def test_pipeline_task_lifecycle_persists_status_result_and_error(tmp_path):
@@ -63,3 +64,63 @@ def test_pipeline_task_cancel_only_allows_queued_tasks(tmp_path):
         assert "only queued tasks can be cancelled" in str(exc)
     else:
         raise AssertionError("running task cancellation should fail")
+
+
+class FakePipelineSummary:
+    total_fetched = 5
+    total_new = 2
+    total_insighted = 5
+    failed_sources = []
+    has_failures = False
+    per_source = {"arxiv": {"status": "success", "fetched": 5, "new": 2}}
+
+
+class FakeEditorialResult:
+    generated = 6
+    outputs = []
+
+
+class FakeNotificationSummary:
+    attempted = 2
+    succeeded = 2
+    failed = 0
+
+
+def test_pipeline_task_runner_executes_full_pipeline_and_records_results(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    task = db.create_pipeline_task(
+        task_type="full_pipeline",
+        requested_by="operator",
+        parameters={"notify": True, "editorialLimit": 3},
+    )
+    calls = []
+
+    runner = PipelineTaskRunner(
+        db=db,
+        settings_factory=lambda: type(
+            "Settings",
+            (),
+            {
+                "database_url": f"sqlite:///{tmp_path/'papers.db'}",
+                "feishu_bot_webhook": "hook",
+                "feishu_bot_secret": None,
+                "max_notify_items": 10,
+            },
+        )(),
+        source_factory=lambda: ["source"],
+        pipeline_runner=lambda **kwargs: calls.append(("crawl", kwargs)) or FakePipelineSummary(),
+        editorial_runner=lambda **kwargs: calls.append(("editorial", kwargs)) or FakeEditorialResult(),
+        notification_runner=lambda **kwargs: calls.append(("notify", kwargs)) or FakeNotificationSummary(),
+        notifier_factory=lambda settings: object(),
+    )
+
+    runner.run_task_once(task.task_id)
+
+    stored = db.get_pipeline_task(task.task_id)
+    assert stored.status == "success"
+    assert stored.current_stage == "done"
+    assert stored.result["crawl"]["totalFetched"] == 5
+    assert stored.result["editorial"]["generated"] == 6
+    assert stored.result["notify"]["succeeded"] == 2
+    assert [name for name, _ in calls] == ["crawl", "editorial", "notify"]
