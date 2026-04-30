@@ -1,5 +1,13 @@
 import { pipelineStages, sourceHealth } from "../../demo-data.ts";
-import type { CrawlRunItem, EditorialRunItem, PipelineStageItem, SourceHealthItem, SummarizationRunItem } from "../../types.ts";
+import type {
+  CrawlRunItem,
+  EditorialRunItem,
+  PipelineStageItem,
+  PipelineTaskCreateInput,
+  PipelineTaskItem,
+  SourceHealthItem,
+  SummarizationRunItem,
+} from "../../types.ts";
 
 export interface PipelineDataSource {
   listPipelineStages(): Promise<PipelineStageItem[]>;
@@ -7,6 +15,10 @@ export interface PipelineDataSource {
   listCrawlRuns(): Promise<CrawlRunItem[]>;
   listSummarizationRuns(): Promise<SummarizationRunItem[]>;
   listEditorialRuns(): Promise<EditorialRunItem[]>;
+  createPipelineTask(input: PipelineTaskCreateInput): Promise<PipelineTaskItem>;
+  listPipelineTasks(): Promise<PipelineTaskItem[]>;
+  getPipelineTask(taskId: number): Promise<PipelineTaskItem | null>;
+  cancelPipelineTask(taskId: number): Promise<PipelineTaskItem>;
 }
 
 export const demoPipelineDataSource: PipelineDataSource = {
@@ -25,7 +37,91 @@ export const demoPipelineDataSource: PipelineDataSource = {
   async listEditorialRuns() {
     return [...demoEditorialRuns];
   },
+  async createPipelineTask(input) {
+    return {
+      ...demoPipelineTasks[0],
+      taskId: Date.now(),
+      requestedBy: input.requestedBy ?? null,
+      parameters: {
+        notify: input.notify,
+        editorialLimit: input.editorialLimit,
+      },
+    };
+  },
+  async listPipelineTasks() {
+    return [...demoPipelineTasks];
+  },
+  async getPipelineTask(taskId) {
+    return demoPipelineTasks.find((task) => task.taskId === taskId) ?? null;
+  },
+  async cancelPipelineTask(taskId) {
+    return {
+      ...(demoPipelineTasks.find((task) => task.taskId === taskId) ?? demoPipelineTasks[0]),
+      taskId,
+      status: "cancelled",
+      currentStage: "done",
+      finishedAt: new Date().toISOString(),
+    };
+  },
 };
+
+const demoPipelineTasks: PipelineTaskItem[] = [
+  {
+    taskId: 31,
+    taskType: "full_pipeline",
+    status: "success",
+    currentStage: "done",
+    progressCurrent: 3,
+    progressTotal: 3,
+    requestedBy: "demo-operator",
+    parameters: {
+      notify: true,
+      editorialLimit: 3,
+    },
+    result: {
+      crawl: {
+        totalFetched: 42,
+        totalNew: 11,
+      },
+      editorial: {
+        generated: 9,
+      },
+      notify: {
+        attempted: 3,
+        succeeded: 3,
+        failed: 0,
+      },
+    },
+    errorMessage: null,
+    createdAt: "2026-04-30T09:00:00Z",
+    startedAt: "2026-04-30T09:00:04Z",
+    finishedAt: "2026-04-30T09:08:30Z",
+  },
+  {
+    taskId: 30,
+    taskType: "full_pipeline",
+    status: "failed",
+    currentStage: "failed",
+    progressCurrent: 3,
+    progressTotal: 3,
+    requestedBy: "demo-operator",
+    parameters: {
+      notify: false,
+      editorialLimit: 2,
+    },
+    result: {
+      crawl: {
+        totalFetched: 18,
+        totalNew: 0,
+        failedSources: ["openreview"],
+      },
+    },
+    errorMessage: "source failures: openreview",
+    createdAt: "2026-04-29T09:00:00Z",
+    startedAt: "2026-04-29T09:00:04Z",
+    finishedAt: "2026-04-29T09:04:10Z",
+  },
+];
 
 const demoCrawlRuns: CrawlRunItem[] = [
   {

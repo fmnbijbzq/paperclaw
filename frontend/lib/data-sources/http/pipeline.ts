@@ -1,6 +1,9 @@
 import type {
   CrawlRunsResponse,
   EditorialRunsResponse,
+  PipelineTaskCreateRequest,
+  PipelineTaskResponse,
+  PipelineTasksResponse,
   PipelineSummaryResponse,
   SummarizationRunsResponse,
 } from "../../api-contracts.ts";
@@ -32,6 +35,19 @@ export function createHttpPipelineDataSource(options: HttpDataSourceOptions): Pi
     async listEditorialRuns() {
       const response = await client.get<EditorialRunsResponse>("pipeline/runs/editorial");
       return response.items;
+    },
+    async createPipelineTask(input) {
+      return client.post<PipelineTaskResponse>("pipeline/tasks", input satisfies PipelineTaskCreateRequest);
+    },
+    async listPipelineTasks() {
+      const response = await client.get<PipelineTasksResponse>("pipeline/tasks");
+      return response.items;
+    },
+    async getPipelineTask(taskId) {
+      return client.get<PipelineTaskResponse>(`pipeline/tasks/${taskId}`);
+    },
+    async cancelPipelineTask(taskId) {
+      return client.post<PipelineTaskResponse>(`pipeline/tasks/${taskId}/cancel`);
     },
   };
 }

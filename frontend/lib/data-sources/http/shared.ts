@@ -68,5 +68,22 @@ export function createHttpClient(options: HttpDataSourceOptions) {
 
       return parseApiEnvelope<TData>(await response.json()).data;
     },
+    async post<TData>(path: string, body?: unknown): Promise<TData> {
+      const requestUrl = buildRequestUrl(options.baseUrl, path);
+      const response = await fetchImplementation(requestUrl, {
+        method: "POST",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: body === undefined ? undefined : JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP request failed with status ${response.status} for ${requestUrl}`);
+      }
+
+      return parseApiEnvelope<TData>(await response.json()).data;
+    },
   };
 }

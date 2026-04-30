@@ -5,6 +5,8 @@ import type {
   EditorialRunItem,
   PaperSource,
   PipelineStageItem,
+  PipelineTaskCreateInput,
+  PipelineTaskItem,
   SourceHealthItem,
   SummarizationRunItem,
 } from "../types.ts";
@@ -16,6 +18,10 @@ export interface PipelineRepository {
   listCrawlRuns(): Promise<CrawlRunItem[]>;
   listSummarizationRuns(): Promise<SummarizationRunItem[]>;
   listEditorialRuns(): Promise<EditorialRunItem[]>;
+  createPipelineTask(input: PipelineTaskCreateInput): Promise<PipelineTaskItem>;
+  listPipelineTasks(): Promise<PipelineTaskItem[]>;
+  getPipelineTask(taskId: number): Promise<PipelineTaskItem | null>;
+  cancelPipelineTask(taskId: number): Promise<PipelineTaskItem>;
 }
 
 export function createPipelineRepository(dataSource: PipelineDataSource): PipelineRepository {
@@ -39,6 +45,18 @@ export function createPipelineRepository(dataSource: PipelineDataSource): Pipeli
     },
     async listEditorialRuns() {
       return dataSource.listEditorialRuns();
+    },
+    async createPipelineTask(input: PipelineTaskCreateInput) {
+      return dataSource.createPipelineTask(input);
+    },
+    async listPipelineTasks() {
+      return dataSource.listPipelineTasks();
+    },
+    async getPipelineTask(taskId: number) {
+      return dataSource.getPipelineTask(taskId);
+    },
+    async cancelPipelineTask(taskId: number) {
+      return dataSource.cancelPipelineTask(taskId);
     },
   };
 }

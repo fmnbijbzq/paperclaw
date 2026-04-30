@@ -36,13 +36,15 @@ function createFetchStub(
   return {
     calls,
     requests,
-    fetch: async (input) => {
+    fetch: async (input, init) => {
       const url = String(input);
-      const method = "GET";
+      const method = init?.method ?? "GET";
+      const body = typeof init?.body === "string" ? init.body : undefined;
       const route = routes[`${method} ${url}`] ?? routes[url];
 
       calls.push(url);
       requests.push({
+        body,
         method,
         url,
       });
@@ -261,6 +263,83 @@ test("HTTP pipeline data source maps summary payloads to stages and source healt
     "https://paperclaw.example/api/pipeline/summary",
     "https://paperclaw.example/api/pipeline/summary",
   ]);
+});
+
+test("HTTP pipeline data source creates, lists, gets, and cancels pipeline tasks", async () => {
+  const createdTask = {
+    taskId: 101,
+    taskType: "full_pipeline",
+    status: "queued",
+    currentStage: "queued",
+    progressCurrent: 0,
+    progressTotal: 3,
+    requestedBy: "operator",
+    parameters: { notify: false, editorialLimit: 2 },
+    result: {},
+    errorMessage: null,
+    createdAt: "2026-04-30T12:00:00Z",
+    startedAt: null,
+    finishedAt: null,
+  };
+  const runningTask = {
+    ...createdTask,
+    status: "running",
+    currentStage: "crawl",
+    progressCurrent: 1,
+    startedAt: "2026-04-30T12:00:03Z",
+  };
+  const cancelledTask = {
+    ...createdTask,
+    status: "cancelled",
+    currentStage: "done",
+    finishedAt: "2026-04-30T12:01:00Z",
+  };
+  const { fetch, requests } = createFetchStub({
+    "POST https://paperclaw.example/api/pipeline/tasks": {
+      body: createApiEnvelope(createdTask),
+    },
+    "GET https://paperclaw.example/api/pipeline/tasks": {
+      body: createApiEnvelope({
+        items: [createdTask],
+        total: 1,
+      }),
+    },
+    "GET https://paperclaw.example/api/pipeline/tasks/101": {
+      body: createApiEnvelope(runningTask),
+    },
+    "POST https://paperclaw.example/api/pipeline/tasks/101/cancel": {
+      body: createApiEnvelope(cancelledTask),
+    },
+  });
+  const dataSource = createHttpPipelineDataSource({
+    baseUrl: "https://paperclaw.example/api",
+    fetch,
+  });
+
+  const [created, listed, fetched, cancelled] = await Promise.all([
+    dataSource.createPipelineTask({ taskType: "full_pipeline", requestedBy: "operator", notify: false, editorialLimit: 2 }),
+    dataSource.listPipelineTasks(),
+    dataSource.getPipelineTask(101),
+    dataSource.cancelPipelineTask(101),
+  ]);
+
+  assert.equal(created.taskId, 101);
+  assert.equal(listed[0]?.status, "queued");
+  assert.equal(fetched?.currentStage, "crawl");
+  assert.equal(cancelled.status, "cancelled");
+  assert.deepEqual(
+    requests.map((request) => `${request.method} ${request.url}`),
+    [
+      "POST https://paperclaw.example/api/pipeline/tasks",
+      "GET https://paperclaw.example/api/pipeline/tasks",
+      "GET https://paperclaw.example/api/pipeline/tasks/101",
+      "POST https://paperclaw.example/api/pipeline/tasks/101/cancel",
+    ],
+  );
+  assert.equal(
+    requests[0]?.body,
+    JSON.stringify({ taskType: "full_pipeline", requestedBy: "operator", notify: false, editorialLimit: 2 }),
+  );
 });
 
 test("HTTP data sources reject malformed API envelopes", async () => {
