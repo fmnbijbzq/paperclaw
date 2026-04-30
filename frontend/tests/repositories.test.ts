@@ -310,6 +310,18 @@ test("pipeline repository exposes stages and source-health lookups", async () =>
     async listEditorialRuns() {
       return [];
     },
+    async createPipelineTask() {
+      throw new Error("not used");
+    },
+    async listPipelineTasks() {
+      return [];
+    },
+    async getPipelineTask() {
+      return null;
+    },
+    async cancelPipelineTask() {
+      throw new Error("not used");
+    },
   } satisfies PipelineDataSource);
 
   const stages = await repository.listStages();
@@ -360,6 +372,18 @@ test("pipeline repository exposes run lists", async () => {
     async listEditorialRuns() {
       return [];
     },
+    async createPipelineTask() {
+      throw new Error("not used");
+    },
+    async listPipelineTasks() {
+      return [];
+    },
+    async getPipelineTask() {
+      return null;
+    },
+    async cancelPipelineTask() {
+      throw new Error("not used");
+    },
   } satisfies PipelineDataSource);
 
   const crawlRuns = await repository.listCrawlRuns();
@@ -370,6 +394,77 @@ test("pipeline repository exposes run lists", async () => {
   const sumRuns = await repository.listSummarizationRuns();
   assert.equal(sumRuns.length, 1);
   assert.equal(sumRuns[0]?.papersProcessed, 10);
+});
+
+test("pipeline repository exposes task lifecycle operations", async () => {
+  const task = {
+    taskId: 9,
+    taskType: "full_pipeline" as const,
+    status: "queued" as const,
+    currentStage: "queued" as const,
+    progressCurrent: 0,
+    progressTotal: 3,
+    requestedBy: "operator",
+    parameters: { notify: true, editorialLimit: 3 },
+    result: {},
+    errorMessage: null,
+    createdAt: "2026-04-30T12:00:00Z",
+    startedAt: null,
+    finishedAt: null,
+  };
+  const repository = createPipelineRepository({
+    async listPipelineStages() {
+      return [];
+    },
+    async listSourceHealth() {
+      return [];
+    },
+    async listCrawlRuns() {
+      return [];
+    },
+    async listSummarizationRuns() {
+      return [];
+    },
+    async listEditorialRuns() {
+      return [];
+    },
+    async createPipelineTask(input) {
+      return {
+        ...task,
+        requestedBy: input.requestedBy ?? null,
+        parameters: { notify: input.notify, editorialLimit: input.editorialLimit },
+      };
+    },
+    async listPipelineTasks() {
+      return [task];
+    },
+    async getPipelineTask(taskId) {
+      return taskId === task.taskId ? task : null;
+    },
+    async cancelPipelineTask(taskId) {
+      return {
+        ...task,
+        taskId,
+        status: "cancelled",
+        currentStage: "done",
+      };
+    },
+  } satisfies PipelineDataSource);
+
+  const created = await repository.createPipelineTask({
+    taskType: "full_pipeline",
+    requestedBy: "operator",
+    notify: false,
+    editorialLimit: 2,
+  });
+  const listed = await repository.listPipelineTasks();
+  const fetched = await repository.getPipelineTask(9);
+  const cancelled = await repository.cancelPipelineTask(9);
+
+  assert.equal(created.parameters.editorialLimit, 2);
+  assert.equal(listed.length, 1);
+  assert.equal(fetched?.taskId, 9);
+  assert.equal(cancelled.status, "cancelled");
 });
 
 test("drafts repository sorts, filters, and exposes workflow mutations", async () => {

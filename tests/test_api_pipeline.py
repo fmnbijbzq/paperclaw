@@ -215,6 +215,37 @@ def test_editorial_runs_endpoint_returns_run_list(tmp_path):
     assert items[1]["status"] == "success"
 
 
+def test_pipeline_tasks_api_creates_lists_gets_and_cancels_tasks(tmp_path):
+    app = create_app(
+        database_url=f"sqlite:///{tmp_path/'papers.db'}",
+        editorial_root=tmp_path / "outputs" / "editorial",
+        start_task_runner=False,
+    )
+    client = ASGITestClient(app)
+
+    create_response = client.post(
+        "/pipeline/tasks",
+        json={"taskType": "full_pipeline", "requestedBy": "operator", "notify": False, "editorialLimit": 2},
+    )
+    assert create_response.status_code == 200
+    task = create_response.json()["data"]
+    assert task["taskType"] == "full_pipeline"
+    assert task["status"] == "queued"
+    assert task["parameters"]["notify"] is False
+
+    list_response = client.get("/pipeline/tasks")
+    assert list_response.status_code == 200
+    assert list_response.json()["data"]["total"] == 1
+
+    get_response = client.get(f"/pipeline/tasks/{task['taskId']}")
+    assert get_response.status_code == 200
+    assert get_response.json()["data"]["taskId"] == task["taskId"]
+
+    cancel_response = client.post(f"/pipeline/tasks/{task['taskId']}/cancel")
+    assert cancel_response.status_code == 200
+    assert cancel_response.json()["data"]["status"] == "cancelled"
+
+
 def test_pipeline_summary_counts_database_backed_drafts_without_filesystem_scan(tmp_path):
     db = Database(f"sqlite:///{tmp_path/'papers.db'}")
     db.create_schema()

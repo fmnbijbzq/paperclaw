@@ -185,6 +185,8 @@ export interface PaperSearchResult {
 }
 
 export type RunStatus = "running" | "success" | "failed";
+export type PipelineTaskStatus = "queued" | "running" | "success" | "failed" | "cancelled";
+export type PipelineTaskStage = "queued" | "crawl" | "editorial" | "notify" | "done" | "failed";
 
 export interface CrawlRunItem {
   runId: number;
@@ -224,4 +226,27 @@ export interface PipelineRunsSnapshot {
   crawlRuns: CrawlRunItem[];
   summarizationRuns: SummarizationRunItem[];
   editorialRuns: EditorialRunItem[];
+}
+
+export interface PipelineTaskCreateInput {
+  taskType: "full_pipeline";
+  requestedBy?: string | null;
+  notify: boolean;
+  editorialLimit: number;
+}
+
+export interface PipelineTaskItem {
+  taskId: number;
+  taskType: "full_pipeline";
+  status: PipelineTaskStatus;
+  currentStage: PipelineTaskStage;
+  progressCurrent: number;
+  progressTotal: number;
+  requestedBy: string | null;
+  parameters: Record<string, unknown>;
+  result: Record<string, unknown>;
+  errorMessage: string | null;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
 }

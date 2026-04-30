@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -291,6 +291,34 @@ class EditorialRunItem(ApiModel):
 
 class EditorialRunsResponse(ApiModel):
     items: list[EditorialRunItem]
+    total: int
+
+
+class PipelineTaskCreateRequest(ApiModel):
+    task_type: str = Field(default="full_pipeline", alias="taskType")
+    requested_by: str | None = Field(default=None, alias="requestedBy")
+    notify: bool = True
+    editorial_limit: int = Field(default=3, ge=1, alias="editorialLimit")
+
+
+class PipelineTaskItem(ApiModel):
+    task_id: int = Field(alias="taskId")
+    task_type: str = Field(alias="taskType")
+    status: str
+    current_stage: str = Field(alias="currentStage")
+    progress_current: int = Field(alias="progressCurrent")
+    progress_total: int = Field(alias="progressTotal")
+    requested_by: str | None = Field(default=None, alias="requestedBy")
+    parameters: dict[str, Any]
+    result: dict[str, Any]
+    error_message: str | None = Field(default=None, alias="errorMessage")
+    created_at: str = Field(alias="createdAt")
+    started_at: str | None = Field(default=None, alias="startedAt")
+    finished_at: str | None = Field(default=None, alias="finishedAt")
+
+
+class PipelineTasksResponse(ApiModel):
+    items: list[PipelineTaskItem]
     total: int
 
 

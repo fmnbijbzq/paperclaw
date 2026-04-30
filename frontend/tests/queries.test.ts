@@ -8,6 +8,7 @@ import {
   getExportRecords,
   getNotificationFeed,
   getPaperDetail,
+  getPipelineTasks,
   searchPapers,
 } from "../lib/queries.ts";
 
@@ -57,6 +58,13 @@ test("getNotificationFeed keeps the newest delivery attempts first", async () =>
     feed.slice(0, 3).map((item) => item.notificationId),
     [804, 801, 802],
   );
+});
+
+test("pipeline task queries expose recent asynchronous workflow tasks", async () => {
+  const tasks = await getPipelineTasks();
+
+  assert.equal(tasks[0]?.taskType, "full_pipeline");
+  assert.ok(tasks[0]?.result);
 });
 
 test("draft queries expose filters, detail joins, and export audit visibility", async () => {

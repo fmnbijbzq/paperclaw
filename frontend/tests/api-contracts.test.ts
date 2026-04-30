@@ -12,6 +12,8 @@ import {
   type NotificationFeedResponse,
   type PaperDetailResponse,
   type PapersListResponse,
+  type PipelineTaskCreateRequest,
+  type PipelineTasksResponse,
   type PipelineSummaryResponse,
 } from "../lib/api-contracts.ts";
 
@@ -95,6 +97,43 @@ test("paper detail, pipeline, and notification contracts cover the current front
     "editorialDrafts",
   ]);
   assert.equal(notificationResponse.total, 0);
+});
+
+test("pipeline task contracts cover asynchronous workflow control", () => {
+  const request: PipelineTaskCreateRequest = {
+    taskType: "full_pipeline",
+    requestedBy: "operator",
+    notify: true,
+    editorialLimit: 3,
+  };
+  const response: PipelineTasksResponse = {
+    items: [
+      {
+        taskId: 101,
+        taskType: "full_pipeline",
+        status: "running",
+        currentStage: "crawl",
+        progressCurrent: 1,
+        progressTotal: 3,
+        requestedBy: "operator",
+        parameters: { notify: true, editorialLimit: 3 },
+        result: {
+          crawl: {
+            totalFetched: 12,
+            totalNew: 4,
+          },
+        },
+        errorMessage: null,
+        createdAt: "2026-04-30T12:00:00Z",
+        startedAt: "2026-04-30T12:00:03Z",
+        finishedAt: null,
+      },
+    ],
+    total: 1,
+  };
+
+  assert.equal(request.taskType, "full_pipeline");
+  assert.equal(response.items[0]?.currentStage, "crawl");
 });
 
 test("draft and export contracts cover operational workflow pages", () => {

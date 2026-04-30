@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, func, inspect, select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import Base, CrawlRun, DestinationRecord, EditorialDraft, EditorialRun, ExportRecord, Notification, Paper, PaperInsight, PaperVersion, SummarizationRun
+from app.models import Base, CrawlRun, DestinationRecord, EditorialDraft, EditorialRun, ExportRecord, Notification, Paper, PaperInsight, PaperVersion, PipelineTask, SummarizationRun
 from app.schemas import PaperRecord
 from app.summarization.schemas import PaperInsightRecord
 from app.utils.time import utc_now
@@ -480,8 +480,115 @@ class Database:
         with self._session() as session:
             return list(session.scalars(stmt).all())
 
+    def create_pipeline_task(
+        self,
+        *,
+        task_type: str,
+        requested_by: str | None,
+        parameters: dict[str, Any] | None = None,
+    ) -> PipelineTask:
+        task = PipelineTask(
+            task_type=task_type,
+            status="queued",
+            current_stage="queued",
+            progress_current=0,
+            progress_total=3,
+            requested_by=requested_by,
+            parameters=dict(parameters or {}),
+            result={},
+        )
+        with self._session() as session:
+            session.add(task)
+            session.commit()
+            return task
+
+    def get_pipeline_task(self, task_id: int) -> PipelineTask | None:
+        with self._session() as session:
+            return session.get(PipelineTask, task_id)
+
+    def list_pipeline_tasks(self, *, limit: int = 50) -> list[PipelineTask]:
+        stmt = select(PipelineTask).order_by(PipelineTask.task_id.desc()).limit(limit)
+        with self._session() as session:
+            return list(session.scalars(stmt).all())
+
+    def mark_pipeline_task_running(
+        self,
+        task_id: int,
+        *,
+        stage: str,
+        progress_current: int,
+    ) -> PipelineTask:
+        with self._session() as session:
+            task = self._require_pipeline_task(session, task_id)
+            task.status = "running"
+            task.current_stage = stage
+            task.progress_current = progress_current
+            task.started_at = task.started_at or utc_now()
+            session.commit()
+            return task
+
+    def update_pipeline_task_progress(
+        self,
+        task_id: int,
+        *,
+        stage: str,
+        progress_current: int,
+        result_patch: dict[str, Any] | None = None,
+    ) -> PipelineTask:
+        with self._session() as session:
+            task = self._require_pipeline_task(session, task_id)
+            task.current_stage = stage
+            task.progress_current = progress_current
+            if result_patch:
+                task.result = self._merge_result_patch(task.result, result_patch)
+            session.commit()
+            return task
+
+    def finish_pipeline_task(
+        self,
+        task_id: int,
+        *,
+        status: str,
+        stage: str,
+        result_patch: dict[str, Any] | None = None,
+        error_message: str | None = None,
+    ) -> PipelineTask:
+        with self._session() as session:
+            task = self._require_pipeline_task(session, task_id)
+            task.status = status
+            task.current_stage = stage
+            task.progress_current = task.progress_total
+            if result_patch:
+                task.result = self._merge_result_patch(task.result, result_patch)
+            task.error_message = error_message
+            task.finished_at = task.finished_at or utc_now()
+            session.commit()
+            return task
+
+    def cancel_pipeline_task(self, task_id: int) -> PipelineTask:
+        with self._session() as session:
+            task = self._require_pipeline_task(session, task_id)
+            if task.status != "queued":
+                raise ValueError("only queued tasks can be cancelled")
+            task.status = "cancelled"
+            task.current_stage = "done"
+            task.finished_at = task.finished_at or utc_now()
+            session.commit()
+            return task
+
     def _session(self) -> Session:
         return self._session_factory()
+
+    def _require_pipeline_task(self, session: Session, task_id: int) -> PipelineTask:
+        task = session.get(PipelineTask, task_id)
+        if task is None:
+            raise ValueError(f"pipeline task {task_id} does not exist")
+        return task
+
+    def _merge_result_patch(self, result: dict[str, Any] | None, patch: dict[str, Any]) -> dict[str, Any]:
+        merged = dict(result or {})
+        merged.update(patch)
+        return merged
 
     def _migrate_sqlite_schema(self) -> None:
         if self.engine.dialect.name != "sqlite":

@@ -22,6 +22,8 @@ import type {
   PaperSearchResult,
   PaperSource,
   PipelineRunsSnapshot,
+  PipelineTaskCreateInput,
+  PipelineTaskItem,
   DraftStatus,
 } from "./types.ts";
 
@@ -285,4 +287,20 @@ export async function getPipelineRunsSnapshot(): Promise<PipelineRunsSnapshot> {
     summarizationRuns,
     editorialRuns,
   };
+}
+
+export async function getPipelineTasks(): Promise<PipelineTaskItem[]> {
+  return pipelineRepository.listPipelineTasks();
+}
+
+export async function createPipelineTask(input: PipelineTaskCreateInput): Promise<PipelineTaskItem> {
+  return pipelineRepository.createPipelineTask(input);
+}
+
+export async function getPipelineTask(taskId: number): Promise<PipelineTaskItem | null> {
+  return pipelineRepository.getPipelineTask(taskId);
+}
+
+export async function cancelPipelineTask(taskId: number): Promise<PipelineTaskItem> {
+  return pipelineRepository.cancelPipelineTask(taskId);
 }

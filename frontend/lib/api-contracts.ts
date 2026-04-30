@@ -14,6 +14,8 @@ import type {
   PaperItem,
   PaperRecord,
   PaperSource,
+  PipelineTaskCreateInput,
+  PipelineTaskItem,
   PipelineStageItem,
   SourceHealthItem,
   SummarizationRunItem,
@@ -129,6 +131,15 @@ export interface SummarizationRunsResponse {
 
 export interface EditorialRunsResponse {
   items: EditorialRunItem[];
+  total: number;
+}
+
+export type PipelineTaskCreateRequest = PipelineTaskCreateInput;
+
+export type PipelineTaskResponse = PipelineTaskItem;
+
+export interface PipelineTasksResponse {
+  items: PipelineTaskItem[];
   total: number;
 }
 
