@@ -1,11 +1,13 @@
 import { ArrowRight, CheckCircle2, Clock3, Sparkles } from "lucide-react";
 
 import { EmptyState } from "@/components/empty-state";
+import { PipelineTaskControl } from "@/components/pipeline-task-control";
 import { PipelineTimeline } from "@/components/pipeline-timeline";
 import { CrawlRunList, SummarizationRunList, EditorialRunList } from "@/components/run-history";
 import { SectionCard } from "@/components/section-card";
 import { StatusBadge } from "@/components/status-badge";
-import { getDashboardSnapshot, getPipelineRunsSnapshot } from "@/lib/queries";
+import { getDashboardSnapshot, getPipelineRunsSnapshot, getPipelineTasks } from "@/lib/queries";
+import { resolveRuntimeConfig } from "@/lib/runtime-config";
 
 const extensionPoints = [
   {
@@ -21,9 +23,11 @@ const extensionPoints = [
 ];
 
 export default async function PipelinePage() {
-  const [snapshot, runs] = await Promise.all([
+  const runtimeConfig = resolveRuntimeConfig();
+  const [snapshot, runs, tasks] = await Promise.all([
     getDashboardSnapshot(),
     getPipelineRunsSnapshot(),
+    getPipelineTasks(),
   ]);
 
   return (
@@ -50,6 +54,18 @@ export default async function PipelinePage() {
             description="面向后端的数据源接入后，本页面即可展示实时阶段数据。"
           />
         )}
+      </SectionCard>
+
+      <SectionCard
+        eyebrow="主动执行"
+        title="流水线任务"
+        description="手动启动抓取、洞察、草稿生成和可选飞书通知；导出仍保持审核后人工触发。"
+      >
+        <PipelineTaskControl
+          apiBaseUrl={runtimeConfig.apiBaseUrl}
+          dataSource={runtimeConfig.dataSource}
+          initialTasks={tasks}
+        />
       </SectionCard>
 
       <SectionCard
