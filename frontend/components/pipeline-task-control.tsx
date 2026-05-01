@@ -19,6 +19,7 @@ interface PipelineTaskControlProps {
 const statusTone: Record<PipelineTaskStatus, "success" | "danger" | "warning" | "info" | "neutral"> = {
   queued: "info",
   running: "warning",
+  cancelling: "warning",
   success: "success",
   failed: "danger",
   cancelled: "neutral",
@@ -27,6 +28,7 @@ const statusTone: Record<PipelineTaskStatus, "success" | "danger" | "warning" | 
 const statusLabel: Record<PipelineTaskStatus, string> = {
   queued: "排队中",
   running: "运行中",
+  cancelling: "取消中",
   success: "成功",
   failed: "失败",
   cancelled: "已取消",
@@ -159,20 +161,30 @@ export function PipelineTaskControl({ apiBaseUrl, apiKey, dataSource, initialTas
     setMessage(null);
     startTransition(async () => {
       try {
+        const existing = tasks.find((item) => item.taskId === taskId);
+        // queued 任务后端会直接转 cancelled；running 任务转 cancelling，
+        // 由 worker 在下一个检查点写入终态。前端依赖后端返回的 status，
+        // demo 模式下按当前状态推算：running → cancelling，其它 → cancelled。
+        const optimisticStatus: PipelineTaskStatus =
+          existing?.status === "running" ? "cancelling" : "cancelled";
         const task =
           dataSource === "http" && apiBaseUrl
             ? await requestTask<PipelineTaskItem>(apiBaseUrl, apiKey, `pipeline/tasks/${taskId}/cancel`, {
                 method: "POST",
               })
             : ({
-                ...tasks.find((item) => item.taskId === taskId),
+                ...existing,
                 taskId,
-                status: "cancelled",
-                currentStage: "done",
-                finishedAt: new Date().toISOString(),
+                status: optimisticStatus,
+                currentStage: optimisticStatus === "cancelled" ? "done" : existing?.currentStage ?? "crawl",
+                finishedAt: optimisticStatus === "cancelled" ? new Date().toISOString() : null,
               } as PipelineTaskItem);
         setTasks((current) => current.map((item) => (item.taskId === task.taskId ? task : item)));
-        setMessage(`任务 #${task.taskId} 已取消`);
+        setMessage(
+          task.status === "cancelling"
+            ? `任务 #${task.taskId} 已请求取消，等待 worker 在下一阶段间隙退出`
+            : `任务 #${task.taskId} 已取消`,
+        );
       } catch (error) {
         setMessage(error instanceof Error ? error.message : "取消任务失败");
       }
@@ -244,15 +256,26 @@ export function PipelineTaskControl({ apiBaseUrl, apiKey, dataSource, initialTas
                   {task.errorMessage ? ` · ${task.errorMessage}` : ""}
                 </p>
               </div>
-              {task.status === "queued" ? (
+              {task.status === "queued" || task.status === "running" ? (
                 <button
                   type="button"
                   onClick={() => handleCancel(task.taskId)}
                   disabled={isPending}
                   className="inline-flex h-9 items-center justify-center gap-2 rounded-[0.8rem] border border-[rgba(251,113,133,0.28)] px-3 text-sm font-semibold text-[color:var(--accent-rose)] transition hover:bg-[rgba(251,113,133,0.1)] disabled:cursor-not-allowed disabled:opacity-60"
+                  title={task.status === "running" ? "向 worker 发送取消信号，将在下一阶段间隙生效" : "取消排队中的任务"}
                 >
                   <XCircle className="h-4 w-4" aria-hidden="true" />
                   取消
+                </button>
+              ) : task.status === "cancelling" ? (
+                <button
+                  type="button"
+                  disabled
+                  className="inline-flex h-9 items-center justify-center gap-2 rounded-[0.8rem] border border-[color:var(--border-subtle)] px-3 text-sm font-semibold text-[color:var(--text-dim)] opacity-70"
+                  title="已请求取消，等待 worker 完成当前阶段"
+                >
+                  <XCircle className="h-4 w-4" aria-hidden="true" />
+                  取消中…
                 </button>
               ) : null}
             </div>

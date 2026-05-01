@@ -185,7 +185,7 @@ export interface PaperSearchResult {
 }
 
 export type RunStatus = "running" | "success" | "failed";
-export type PipelineTaskStatus = "queued" | "running" | "success" | "failed" | "cancelled";
+export type PipelineTaskStatus = "queued" | "running" | "cancelling" | "success" | "failed" | "cancelled";
 export type PipelineTaskStage = "queued" | "crawl" | "editorial" | "notify" | "done" | "failed";
 
 export interface CrawlRunItem {

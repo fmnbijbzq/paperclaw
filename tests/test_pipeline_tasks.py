@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app.storage import Database
 from app.tasks.pipeline_tasks import PipelineTaskRunner
 
@@ -46,7 +48,7 @@ def test_pipeline_task_lifecycle_persists_status_result_and_error(tmp_path):
     assert finished.result["editorial"]["generated"] == 6
 
 
-def test_pipeline_task_cancel_only_allows_queued_tasks(tmp_path):
+def test_pipeline_task_cancel_queued_transitions_to_cancelled(tmp_path):
     db = Database(f"sqlite:///{tmp_path/'papers.db'}")
     db.create_schema()
     queued = db.create_pipeline_task(task_type="full_pipeline", requested_by="operator", parameters={})
@@ -54,16 +56,41 @@ def test_pipeline_task_cancel_only_allows_queued_tasks(tmp_path):
     cancelled = db.cancel_pipeline_task(queued.task_id)
     assert cancelled.status == "cancelled"
     assert cancelled.current_stage == "done"
+    assert cancelled.finished_at is not None
 
-    running = db.create_pipeline_task(task_type="full_pipeline", requested_by="operator", parameters={})
-    db.mark_pipeline_task_running(running.task_id, stage="crawl", progress_current=1)
 
-    try:
-        db.cancel_pipeline_task(running.task_id)
-    except ValueError as exc:
-        assert "only queued tasks can be cancelled" in str(exc)
-    else:
-        raise AssertionError("running task cancellation should fail")
+def test_pipeline_task_cancel_running_transitions_to_cancelling(tmp_path):
+    """Cancelling a running task signals the worker but does not finalize it.
+
+    The worker is the only thing allowed to write the terminal ``cancelled``
+    row + ``finished_at`` once it observes the signal at the next checkpoint.
+    """
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    task = db.create_pipeline_task(task_type="full_pipeline", requested_by="operator", parameters={})
+    db.mark_pipeline_task_running(task.task_id, stage="crawl", progress_current=1)
+
+    cancelling = db.cancel_pipeline_task(task.task_id)
+    assert cancelling.status == "cancelling"
+    # finished_at is still None — the worker hasn't observed the signal yet.
+    assert cancelling.finished_at is None
+
+    # Idempotent: cancelling a cancelling task does not raise.
+    again = db.cancel_pipeline_task(task.task_id)
+    assert again.status == "cancelling"
+
+    assert db.is_cancellation_requested(task.task_id) is True
+
+
+def test_pipeline_task_cancel_terminal_task_raises(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    task = db.create_pipeline_task(task_type="full_pipeline", requested_by="operator", parameters={})
+    db.mark_pipeline_task_running(task.task_id, stage="crawl", progress_current=1)
+    db.finish_pipeline_task(task.task_id, status="success", stage="done")
+
+    with pytest.raises(ValueError):
+        db.cancel_pipeline_task(task.task_id)
 
 
 class FakePipelineSummary:
@@ -128,7 +155,16 @@ def test_pipeline_task_runner_executes_full_pipeline_and_records_results(tmp_pat
     assert stored.worker_id is not None and stored.worker_id == runner.worker_id
 
 
-def _build_runner(db: Database, *, calls: list | None = None, worker_id: str | None = None) -> PipelineTaskRunner:
+def _build_runner(
+    db: Database,
+    *,
+    calls: list | None = None,
+    worker_id: str | None = None,
+    timeout_seconds: float = 1800,
+    pipeline_runner=None,
+    editorial_runner=None,
+    notification_runner=None,
+) -> PipelineTaskRunner:
     """Helper for tests: PipelineTaskRunner wired with no-op stage runners."""
     calls = calls if calls is not None else []
     return PipelineTaskRunner(
@@ -141,12 +177,13 @@ def _build_runner(db: Database, *, calls: list | None = None, worker_id: str | N
                 "feishu_bot_webhook": None,
                 "feishu_bot_secret": None,
                 "max_notify_items": 10,
+                "pipeline_task_timeout_seconds": timeout_seconds,
             },
         )(),
         source_factory=lambda: [],
-        pipeline_runner=lambda **kwargs: calls.append(("crawl", kwargs)) or FakePipelineSummary(),
-        editorial_runner=lambda **kwargs: calls.append(("editorial", kwargs)) or FakeEditorialResult(),
-        notification_runner=lambda **kwargs: calls.append(("notify", kwargs)) or FakeNotificationSummary(),
+        pipeline_runner=pipeline_runner or (lambda **kwargs: calls.append(("crawl", kwargs)) or FakePipelineSummary()),
+        editorial_runner=editorial_runner or (lambda **kwargs: calls.append(("editorial", kwargs)) or FakeEditorialResult()),
+        notification_runner=notification_runner or (lambda **kwargs: calls.append(("notify", kwargs)) or FakeNotificationSummary()),
         notifier_factory=lambda settings: None,
         worker_id=worker_id,
     )
@@ -246,3 +283,79 @@ def test_list_pipeline_tasks_by_status_filters_correctly(tmp_path):
 
     assert queued_ids == {queued1.task_id, queued2.task_id}
     assert running_ids == {running.task_id}
+
+
+def test_run_task_once_observes_cancellation_and_writes_cancelled(tmp_path):
+    """User clicks cancel during the crawl stage; worker must abort cleanly.
+
+    The worker checks for cancellation between stages, so once crawl returns
+    we expect editorial / notify to be skipped and the task to land in the
+    terminal ``cancelled`` state with ``finished_at`` set.
+    """
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    task = db.create_pipeline_task(task_type="full_pipeline", requested_by="operator", parameters={})
+
+    cancel_after_crawl_state = {"cancelled": False}
+
+    def cancel_during_crawl(**kwargs):
+        # Simulate a user POSTing /pipeline/tasks/{id}/cancel mid-crawl.
+        db.cancel_pipeline_task(task.task_id)
+        cancel_after_crawl_state["cancelled"] = True
+        return FakePipelineSummary()
+
+    def must_not_run_editorial(**kwargs):
+        raise AssertionError("editorial stage must not run after cancel")
+
+    def must_not_run_notify(**kwargs):
+        raise AssertionError("notify stage must not run after cancel")
+
+    runner = _build_runner(
+        db,
+        pipeline_runner=cancel_during_crawl,
+        editorial_runner=must_not_run_editorial,
+        notification_runner=must_not_run_notify,
+    )
+    runner.run_task_once(task.task_id)
+
+    assert cancel_after_crawl_state["cancelled"] is True
+    stored = db.get_pipeline_task(task.task_id)
+    assert stored.status == "cancelled"
+    assert stored.current_stage == "done"
+    assert stored.finished_at is not None
+    assert stored.error_message and "cancel" in stored.error_message.lower()
+
+
+def test_run_task_once_fails_with_timeout_when_elapsed_exceeds_limit(tmp_path):
+    """A stage that runs longer than the configured budget must abort the task."""
+    import time
+
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+    task = db.create_pipeline_task(task_type="full_pipeline", requested_by="operator", parameters={})
+
+    def slow_crawl(**kwargs):
+        # Sleep enough to blow past the 10ms test budget below.
+        time.sleep(0.05)
+        return FakePipelineSummary()
+
+    def must_not_run_editorial(**kwargs):
+        raise AssertionError("editorial stage was reached after deadline")
+
+    def must_not_run_notify(**kwargs):
+        raise AssertionError("notify stage was reached after deadline")
+
+    runner = _build_runner(
+        db,
+        timeout_seconds=0.01,
+        pipeline_runner=slow_crawl,
+        editorial_runner=must_not_run_editorial,
+        notification_runner=must_not_run_notify,
+    )
+    runner.run_task_once(task.task_id)
+
+    stored = db.get_pipeline_task(task.task_id)
+    assert stored.status == "failed"
+    assert stored.current_stage == "failed"
+    assert stored.error_message and "timeout" in stored.error_message.lower()
+    assert stored.finished_at is not None

@@ -22,6 +22,10 @@ class AppSettings(BaseSettings):
     max_notify_items: int = 10
     api_key: str | None = None
     cors_allow_origins: str = "http://localhost:3000"
+    # 单个 pipeline 任务的硬超时（秒）。worker 在每个 stage 之间检查，若已超过
+    # 此预算则把任务标记为 failed(reason="timeout")。防止某个 stage 卡死后
+    # 整条流水线占着 worker thread 无法腾出。
+    pipeline_task_timeout_seconds: int = 1800
     model_config = SettingsConfigDict(
         env_file=str(DOTENV_PATH),
         env_file_encoding="utf-8",

@@ -120,6 +120,7 @@ cd frontend && npm run test
 | `FEISHU_BOT_WEBHOOK` | Feishu webhook URL (notifier disabled when empty) |
 | `FEISHU_BOT_SECRET` | If set, notifier adds `timestamp` + HMAC `sign` to each request |
 | `MAX_NOTIFY_ITEMS` | Cap on papers per combined Feishu message (default 10) |
+| `PIPELINE_TASK_TIMEOUT_SECONDS` | Hard timeout for a dashboard-triggered pipeline task (default 1800). Worker checks between stages; exceeding the deadline finalizes the task as `failed` with `errorMessage="timeout after Ns"`. |
 | `LOG_LEVEL`, `LOG_FORMAT`, `LOG_INCLUDE_LOCATION`, `LOG_FILE` | See `app/logging.py` |
 | `TIMEZONE` | IANA tz, default `Asia/Shanghai` |
 
@@ -138,6 +139,7 @@ Set `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` (and the equivalent server-
 3. **Error isolation per source.** Each source gets its own `CrawlRun`. Source exceptions are caught in `app/pipeline.py` and the run continues.
 4. **Notification independence.** A failed `notifier.send_combined(...)` never rolls back DB upserts; `notifications` rows record both successes and failures, and a paper stays pending until at least one `success=True` row exists.
 5. **Pipeline task runner is in-process, single-worker only.** Started in the FastAPI lifespan as a daemon thread. The queue is in-memory but the runner **recovers from restarts**: on `start()` it (a) marks any `status='running'` task as `failed` with reason "orphaned by process restart" — its worker is gone — and (b) re-enqueues any `status='queued'` task. Each running row carries a `worker_id` and is acquired via an atomic `claim_pipeline_task` (UPDATE … WHERE status='queued'); a losing worker's `run_task_once` exits silently. Running uvicorn with `--workers 2+` is still **unsupported** because each process has its own in-memory queue.
+6. **Cancellation is cooperative.** `cancel_pipeline_task` on a `queued` row transitions it directly to `cancelled` (terminal). On a `running` row it flips to `cancelling` (transient) — only the worker writes the final `cancelled` row + `finished_at`, observed at the next checkpoint between stages. Cancellation cannot interrupt an in-flight stage (e.g. a long PDF download); it only prevents the next stage from starting. The worker also checks an absolute deadline (`PIPELINE_TASK_TIMEOUT_SECONDS`) at each checkpoint and finalizes with `failed`+`"timeout after Ns"` if exceeded — this protects the single-worker queue from a stuck stage.
 
 ## Conventions
 

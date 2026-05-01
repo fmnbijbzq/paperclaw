@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Thread
+from time import monotonic
 from typing import Any, Callable
 from uuid import uuid4
 import logging
@@ -29,6 +30,14 @@ PipelineRunner = Callable[..., Any]
 EditorialRunner = Callable[..., Any]
 NotificationRunner = Callable[..., Any]
 NotifierFactory = Callable[[Any], Any]
+
+
+class _TaskCancelled(Exception):
+    """Raised by the cancellation/timeout checkpoint when the user has cancelled the task."""
+
+
+class _TaskTimeout(Exception):
+    """Raised by the cancellation/timeout checkpoint when the task has exceeded its budget."""
 
 
 def build_sources_from_config(path: Path = SOURCE_CONFIG_PATH) -> list[Any]:
@@ -165,14 +174,21 @@ class PipelineTaskRunner:
 
         settings = self._settings_factory()
         parameters = dict(task.parameters or {})
+        timeout_seconds = float(getattr(settings, "pipeline_task_timeout_seconds", 1800))
+        deadline = monotonic() + timeout_seconds
 
         try:
+            # Checkpoint right after claim — covers the case where the user
+            # cancelled in the small window between create and claim.
+            self._checkpoint(task_id, deadline)
+
             sources = self._source_factory()
             crawl_summary = self._pipeline_runner(
                 database_url=settings.database_url,
                 sources=sources,
                 notifier=None,
             )
+            self._checkpoint(task_id, deadline)
             crawl_result = self._crawl_result(crawl_summary)
             self._db.update_pipeline_task_progress(
                 task_id,
@@ -196,6 +212,7 @@ class PipelineTaskRunner:
                 settings=settings,
                 editorial_limit=editorial_limit,
             )
+            self._checkpoint(task_id, deadline)
             self._db.update_pipeline_task_progress(
                 task_id,
                 stage="notify",
@@ -211,6 +228,29 @@ class PipelineTaskRunner:
                 stage="done",
                 result_patch={"notify": notify_result},
             )
+        except _TaskCancelled:
+            # User-initiated cancel observed at a checkpoint. Worker is the
+            # one that writes the terminal cancelled row + finished_at —
+            # cancel_pipeline_task only flipped the running → cancelling flag.
+            LOGGER.info("pipeline task %s cancelled by user", task_id)
+            self._db.finish_pipeline_task(
+                task_id,
+                status="cancelled",
+                stage="done",
+                error_message="cancelled by user request",
+            )
+        except _TaskTimeout:
+            LOGGER.warning(
+                "pipeline task %s exceeded %.1fs timeout; aborting",
+                task_id,
+                timeout_seconds,
+            )
+            self._db.finish_pipeline_task(
+                task_id,
+                status="failed",
+                stage="failed",
+                error_message=f"timeout after {timeout_seconds:g}s",
+            )
         except Exception as exc:
             LOGGER.exception("pipeline task %s failed", task_id)
             self._db.finish_pipeline_task(
@@ -219,6 +259,18 @@ class PipelineTaskRunner:
                 stage="failed",
                 error_message=str(exc),
             )
+
+    def _checkpoint(self, task_id: int, deadline: float) -> None:
+        """Bail out between stages if the user cancelled or we ran out of time.
+
+        Cooperative cancellation: we cannot interrupt a stage that is already
+        executing (e.g. an in-flight HTTP fetch), but we can prevent the next
+        stage from starting and finalize the task quickly.
+        """
+        if self._db.is_cancellation_requested(task_id):
+            raise _TaskCancelled()
+        if monotonic() >= deadline:
+            raise _TaskTimeout()
 
     def _work_loop(self) -> None:
         while not self._stop_event.is_set():

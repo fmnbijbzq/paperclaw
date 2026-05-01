@@ -606,15 +606,70 @@ class Database:
             return task
 
     def cancel_pipeline_task(self, task_id: int) -> PipelineTask:
+        """Mark a queued task cancelled, or signal a running task to stop.
+
+        ``queued`` → ``cancelled`` (terminal): the worker never picked it up,
+        so we finalize it immediately with ``finished_at``.
+
+        ``running`` → ``cancelling`` (transient): the worker owns the row;
+        we only flip a flag the worker polls between stages. The worker is
+        the one that writes the final ``cancelled`` row + ``finished_at``
+        when it observes the signal — this avoids two writers fighting over
+        the same row.
+
+        ``cancelling`` is idempotent (returns as-is). Any terminal status
+        (``cancelled`` / ``success`` / ``failed``) raises ``ValueError`` so
+        the API can surface 409.
+
+        Both transitions use atomic ``UPDATE … WHERE status = ?`` to prevent
+        races against ``claim_pipeline_task`` and the worker's own writes.
+        """
         with self._session() as session:
-            task = self._require_pipeline_task(session, task_id)
-            if task.status != "queued":
-                raise ValueError("only queued tasks can be cancelled")
-            task.status = "cancelled"
-            task.current_stage = "done"
-            task.finished_at = task.finished_at or utc_now()
+            queued_to_cancelled = session.execute(
+                update(PipelineTask)
+                .where(
+                    PipelineTask.task_id == task_id,
+                    PipelineTask.status == "queued",
+                )
+                .values(
+                    status="cancelled",
+                    current_stage="done",
+                    finished_at=utc_now(),
+                )
+                .execution_options(synchronize_session=False)
+            )
+            if queued_to_cancelled.rowcount == 1:
+                session.commit()
+                return self._require_pipeline_task(session, task_id)
+
+            running_to_cancelling = session.execute(
+                update(PipelineTask)
+                .where(
+                    PipelineTask.task_id == task_id,
+                    PipelineTask.status == "running",
+                )
+                .values(status="cancelling")
+                .execution_options(synchronize_session=False)
+            )
+            if running_to_cancelling.rowcount == 1:
+                session.commit()
+                return self._require_pipeline_task(session, task_id)
+
             session.commit()
-            return task
+            task = self._require_pipeline_task(session, task_id)
+            if task.status == "cancelling":
+                # Idempotent — the worker hasn't observed yet, but a prior
+                # cancel call already flipped the flag.
+                return task
+            raise ValueError(
+                f"task in status '{task.status}' cannot be cancelled"
+            )
+
+    def is_cancellation_requested(self, task_id: int) -> bool:
+        """Cheap check used by the worker between stages."""
+        with self._session() as session:
+            task = session.get(PipelineTask, task_id)
+            return task is not None and task.status == "cancelling"
 
     def _session(self) -> Session:
         return self._session_factory()
