@@ -92,6 +92,16 @@ def list_paper_insights(db: Database) -> list[PaperInsightItem]:
     return [_insight_to_item(item) for item in insights]
 
 
+def _like_pattern(value: str) -> str:
+    """构造 LIKE 模式时转义用户输入的 % / _ / \\，避免它们被解释成通配符。
+
+    例如用户搜 "50%"，旧实现会把它当作"任意字符 50 + 任意字符"匹配到所有论文；
+    转义后只匹配标题真含 50% 的论文。
+    """
+    escaped = value.strip().lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    return f"%{escaped}%"
+
+
 def _apply_filters(
     stmt: Select[tuple[Paper]],
     *,
@@ -103,18 +113,22 @@ def _apply_filters(
     has_draft: bool | None = None,
 ) -> Select[tuple[Paper]]:
     if q:
-        like = f"%{q.strip().lower()}%"
+        like = _like_pattern(q)
         stmt = stmt.where(
-            func.lower(Paper.title).like(like)
-            | func.lower(func.coalesce(Paper.abstract, "")).like(like)
-            | func.lower(Paper.source_paper_id).like(like)
+            func.lower(Paper.title).like(like, escape="\\")
+            | func.lower(func.coalesce(Paper.abstract, "")).like(like, escape="\\")
+            | func.lower(Paper.source_paper_id).like(like, escape="\\")
         )
     if source:
         stmt = stmt.where(Paper.source == source)
     if category:
-        stmt = stmt.where(func.lower(func.coalesce(Paper.categories, "[]")).like(f'%{category.strip().lower()}%'))
+        stmt = stmt.where(
+            func.lower(func.coalesce(Paper.categories, "[]")).like(_like_pattern(category), escape="\\")
+        )
     if venue:
-        stmt = stmt.where(func.lower(func.coalesce(Paper.venue, "")).like(f'%{venue.strip().lower()}%'))
+        stmt = stmt.where(
+            func.lower(func.coalesce(Paper.venue, "")).like(_like_pattern(venue), escape="\\")
+        )
     if has_insight is not None:
         insight_exists = select(PaperInsight.paper_id).where(PaperInsight.paper_id == Paper.paper_id).exists()
         stmt = stmt.where(insight_exists if has_insight else ~insight_exists)
