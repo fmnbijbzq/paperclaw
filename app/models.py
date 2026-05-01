@@ -246,3 +246,22 @@ class DestinationRecord(Base):
     draft: Mapped[EditorialDraft] = relationship(
         back_populates="destination_records",
     )
+
+
+class PaperFetchFailure(Base):
+    """A paper whose ingestion failed mid-pipeline. Retried on next run."""
+    __tablename__ = "paper_fetch_failures"
+    __table_args__ = (
+        UniqueConstraint("source", "source_paper_id", name="uq_paper_fetch_failures_source_id"),
+    )
+
+    failure_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    source: Mapped[str] = mapped_column(String(50), nullable=False)
+    source_paper_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    error_phase: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_message: Mapped[str] = mapped_column(Text, nullable=False)
+    attempts: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    first_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    last_failed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

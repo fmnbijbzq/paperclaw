@@ -447,3 +447,132 @@ def test_record_export_success_transitions_approved_draft_and_persists_audit_row
     assert record.success is True
     assert len(records) == 1
     assert records[0].draft_id == draft.draft_id
+
+
+# ---------------------------------------------------------------------------
+# paper_fetch_failures (failure queue)
+# ---------------------------------------------------------------------------
+
+
+def test_record_paper_failure_creates_row_with_attempts_one(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    failure = db.record_paper_failure(
+        source="arxiv",
+        record=_build_paper(),
+        error_phase="upsert",
+        error=ValueError("bang"),
+    )
+
+    assert failure.attempts == 1
+    assert failure.source == "arxiv"
+    assert failure.source_paper_id == "1234.5678"
+    assert failure.error_phase == "upsert"
+    assert "bang" in failure.error_message
+    assert failure.resolved_at is None
+    # raw_payload must carry the full record so a retry can replay without re-fetching
+    assert failure.raw_payload["title"] == "Test Paper"
+    assert failure.raw_payload["authors"] == ["Alice", "Bob"]
+
+
+def test_record_paper_failure_is_idempotent_per_source_and_paper(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    db.record_paper_failure(
+        source="arxiv",
+        record=_build_paper(),
+        error_phase="normalize",
+        error=ValueError("first"),
+    )
+    second = db.record_paper_failure(
+        source="arxiv",
+        record=_build_paper(),
+        error_phase="upsert",
+        error=ValueError("second"),
+    )
+
+    assert second.attempts == 2
+    assert second.error_phase == "upsert"
+    assert "second" in second.error_message
+    pending = db.list_pending_failures(source="arxiv", limit=10)
+    assert len(pending) == 1
+
+
+def test_list_pending_failures_excludes_resolved_and_exhausted(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    a = db.record_paper_failure(
+        source="arxiv",
+        record=_build_paper(source_paper_id="aa"),
+        error_phase="upsert",
+        error=ValueError("a"),
+    )
+    b = db.record_paper_failure(
+        source="arxiv",
+        record=_build_paper(source_paper_id="bb"),
+        error_phase="upsert",
+        error=ValueError("b"),
+    )
+    db.record_paper_failure(
+        source="arxiv",
+        record=_build_paper(source_paper_id="cc"),
+        error_phase="upsert",
+        error=ValueError("c"),
+    )
+
+    db.mark_failure_resolved(a.failure_id)
+    # bump b past max_attempts (5)
+    for _ in range(5):
+        db.bump_failure_attempts(b.failure_id, error_phase="upsert", error=ValueError("again"))
+
+    pending = db.list_pending_failures(source="arxiv", limit=10, max_attempts=5)
+    pending_ids = {row.source_paper_id for row in pending}
+    assert pending_ids == {"cc"}
+
+
+def test_list_pending_failures_filters_by_source(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    db.record_paper_failure(
+        source="arxiv",
+        record=_build_paper(source_paper_id="a1"),
+        error_phase="upsert",
+        error=ValueError("x"),
+    )
+    db.record_paper_failure(
+        source="openreview",
+        record=PaperRecord(
+            source="openreview",
+            source_paper_id="o1",
+            title="t",
+            paper_url="https://openreview.net/forum?id=o1",
+        ),
+        error_phase="upsert",
+        error=ValueError("y"),
+    )
+
+    arxiv_pending = db.list_pending_failures(source="arxiv", limit=10)
+    or_pending = db.list_pending_failures(source="openreview", limit=10)
+    assert {f.source_paper_id for f in arxiv_pending} == {"a1"}
+    assert {f.source_paper_id for f in or_pending} == {"o1"}
+
+
+def test_mark_failure_resolved_sets_resolved_at(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    failure = db.record_paper_failure(
+        source="arxiv",
+        record=_build_paper(),
+        error_phase="upsert",
+        error=ValueError("bang"),
+    )
+    assert failure.resolved_at is None
+
+    resolved = db.mark_failure_resolved(failure.failure_id)
+    assert resolved.resolved_at is not None
+    assert db.list_pending_failures(source="arxiv", limit=10) == []

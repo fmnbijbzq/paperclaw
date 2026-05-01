@@ -10,7 +10,7 @@ from sqlalchemy import create_engine, func, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
-from app.models import Base, CrawlRun, DestinationRecord, EditorialDraft, EditorialRun, ExportRecord, Notification, Paper, PaperInsight, PaperVersion, PipelineTask, SummarizationRun
+from app.models import Base, CrawlRun, DestinationRecord, EditorialDraft, EditorialRun, ExportRecord, Notification, Paper, PaperFetchFailure, PaperInsight, PaperVersion, PipelineTask, SummarizationRun
 from app.schemas import PaperRecord
 from app.summarization.schemas import PaperInsightRecord
 from app.utils.time import utc_now
@@ -63,6 +63,95 @@ class Database:
             crawl_run.finished_at = crawl_run.finished_at or utc_now()
             session.commit()
             return crawl_run
+
+    def record_paper_failure(
+        self,
+        *,
+        source: str,
+        record: PaperRecord,
+        error_phase: str,
+        error: BaseException,
+    ) -> PaperFetchFailure:
+        """Insert a new fetch-failure row, or bump attempts on the existing
+        one for the same (source, source_paper_id)."""
+        message = f"{type(error).__name__}: {error}"
+        payload = record.model_dump(mode="json")
+        with self._session() as session:
+            existing = session.scalar(
+                select(PaperFetchFailure).where(
+                    PaperFetchFailure.source == source,
+                    PaperFetchFailure.source_paper_id == record.source_paper_id,
+                )
+            )
+            if existing is None:
+                row = PaperFetchFailure(
+                    source=source,
+                    source_paper_id=record.source_paper_id,
+                    error_phase=error_phase,
+                    error_message=message,
+                    attempts=1,
+                    raw_payload=payload,
+                )
+                session.add(row)
+                session.commit()
+                return row
+
+            existing.attempts += 1
+            existing.error_phase = error_phase
+            existing.error_message = message
+            existing.raw_payload = payload
+            existing.last_failed_at = utc_now()
+            existing.resolved_at = None
+            session.commit()
+            return existing
+
+    def bump_failure_attempts(
+        self,
+        failure_id: int,
+        *,
+        error_phase: str,
+        error: BaseException,
+    ) -> PaperFetchFailure:
+        message = f"{type(error).__name__}: {error}"
+        with self._session() as session:
+            row = session.get(PaperFetchFailure, failure_id)
+            if row is None:
+                raise ValueError(f"paper fetch failure {failure_id} does not exist")
+            row.attempts += 1
+            row.error_phase = error_phase
+            row.error_message = message
+            row.last_failed_at = utc_now()
+            session.commit()
+            return row
+
+    def mark_failure_resolved(self, failure_id: int) -> PaperFetchFailure:
+        with self._session() as session:
+            row = session.get(PaperFetchFailure, failure_id)
+            if row is None:
+                raise ValueError(f"paper fetch failure {failure_id} does not exist")
+            row.resolved_at = utc_now()
+            session.commit()
+            return row
+
+    def list_pending_failures(
+        self,
+        *,
+        source: str,
+        limit: int,
+        max_attempts: int = 5,
+    ) -> list[PaperFetchFailure]:
+        with self._session() as session:
+            stmt = (
+                select(PaperFetchFailure)
+                .where(
+                    PaperFetchFailure.source == source,
+                    PaperFetchFailure.resolved_at.is_(None),
+                    PaperFetchFailure.attempts < max_attempts,
+                )
+                .order_by(PaperFetchFailure.first_failed_at.asc())
+                .limit(limit)
+            )
+            return list(session.scalars(stmt))
 
     def upsert_paper(self, record: PaperRecord) -> Paper:
         return self.upsert_paper_with_status(record).paper
