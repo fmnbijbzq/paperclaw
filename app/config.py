@@ -26,6 +26,11 @@ class AppSettings(BaseSettings):
     # 此预算则把任务标记为 failed(reason="timeout")。防止某个 stage 卡死后
     # 整条流水线占着 worker thread 无法腾出。
     pipeline_task_timeout_seconds: int = 1800
+    # 一次 run_once.py 中，每个数据源最多重放多少条历史失败论文。控制
+    # 失败队列对单次运行时长的影响。
+    paper_fetch_max_retry_per_run: int = 50
+    # 单条失败论文连续失败多少次后停止自动重试，留给人工处理。
+    paper_fetch_max_retry_attempts: int = 5
     model_config = SettingsConfigDict(
         env_file=str(DOTENV_PATH),
         env_file_encoding="utf-8",

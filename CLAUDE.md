@@ -43,7 +43,7 @@ frontend/                Next.js 15 dashboard                            (long-r
 
 ### Database schema
 
-Tables: `papers`, `paper_versions`, `paper_insights`, `editorial_drafts`, `export_records`, `destination_records`, `crawl_runs`, `summarization_runs`, `editorial_runs`, `pipeline_tasks`, `notifications`.
+Tables: `papers`, `paper_versions`, `paper_insights`, `editorial_drafts`, `export_records`, `destination_records`, `crawl_runs`, `summarization_runs`, `editorial_runs`, `pipeline_tasks`, `notifications`, `paper_fetch_failures`.
 
 - `papers` has a `(source, source_paper_id)` unique constraint.
 - `paper_versions` is appended whenever upsert detects field changes (enables future "paper updated" notifications).
@@ -121,6 +121,8 @@ cd frontend && npm run test
 | `FEISHU_BOT_SECRET` | If set, notifier adds `timestamp` + HMAC `sign` to each request |
 | `MAX_NOTIFY_ITEMS` | Cap on papers per combined Feishu message (default 10) |
 | `PIPELINE_TASK_TIMEOUT_SECONDS` | Hard timeout for a dashboard-triggered pipeline task (default 1800). Worker checks between stages; exceeding the deadline finalizes the task as `failed` with `errorMessage="timeout after Ns"`. |
+| `PAPER_FETCH_MAX_RETRY_PER_RUN` | Per-source cap on how many queued failures `run_once.py` retries before fetching new records (default 50). Bounds run time when the queue grows. |
+| `PAPER_FETCH_MAX_RETRY_ATTEMPTS` | After this many consecutive failures, a paper stays in `paper_fetch_failures` but is no longer auto-retried (default 5). Surfaces stuck items for human inspection. |
 | `LOG_LEVEL`, `LOG_FORMAT`, `LOG_INCLUDE_LOCATION`, `LOG_FILE` | See `app/logging.py` |
 | `TIMEZONE` | IANA tz, default `Asia/Shanghai` |
 
@@ -136,10 +138,11 @@ Set `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` (and the equivalent server-
 
 1. **Two cron entries, not one.** `run_once.py` (8 AM daily) crawls and summarizes; `run_notify_once.py` (every 10 min) drains the unnotified queue. See `scripts/setup_cron.example`.
 2. **PostgreSQL migration path.** No SQLite-specific features. Timezone-aware datetimes and JSON columns are used throughout `app/models.py`.
-3. **Error isolation per source.** Each source gets its own `CrawlRun`. Source exceptions are caught in `app/pipeline.py` and the run continues.
+3. **Error isolation per source AND per paper.** Each source gets its own `CrawlRun`. A source that fails to fetch (network down, API broken) is recorded as `CrawlRun.status='failed'` and the loop continues to the next source. **Within a successful fetch**, each paper is also processed in its own `try/except`: a single bad record (e.g. an upsert that hits a UTF-8 encoding edge case) goes into `paper_fetch_failures` instead of aborting the source — see item 7.
 4. **Notification independence.** A failed `notifier.send_combined(...)` never rolls back DB upserts; `notifications` rows record both successes and failures, and a paper stays pending until at least one `success=True` row exists.
 5. **Pipeline task runner is in-process, single-worker only.** Started in the FastAPI lifespan as a daemon thread. The queue is in-memory but the runner **recovers from restarts**: on `start()` it (a) marks any `status='running'` task as `failed` with reason "orphaned by process restart" — its worker is gone — and (b) re-enqueues any `status='queued'` task. Each running row carries a `worker_id` and is acquired via an atomic `claim_pipeline_task` (UPDATE … WHERE status='queued'); a losing worker's `run_task_once` exits silently. Running uvicorn with `--workers 2+` is still **unsupported** because each process has its own in-memory queue.
 6. **Cancellation is cooperative.** `cancel_pipeline_task` on a `queued` row transitions it directly to `cancelled` (terminal). On a `running` row it flips to `cancelling` (transient) — only the worker writes the final `cancelled` row + `finished_at`, observed at the next checkpoint between stages. Cancellation cannot interrupt an in-flight stage (e.g. a long PDF download); it only prevents the next stage from starting. The worker also checks an absolute deadline (`PIPELINE_TASK_TIMEOUT_SECONDS`) at each checkpoint and finalizes with `failed`+`"timeout after Ns"` if exceeded — this protects the single-worker queue from a stuck stage.
+7. **Per-paper failure queue with auto-retry.** When a record raises in `normalize → upsert → insight`, `app/pipeline.py` writes the full `PaperRecord` JSON into `paper_fetch_failures` (one row per `(source, source_paper_id)`; a repeated failure increments `attempts` rather than inserting a new row) and continues with the next paper. The source's `CrawlRun.status` stays `success` as long as `source.fetch()` itself returned. On the next run, `_retry_pending_failures` replays up to `PAPER_FETCH_MAX_RETRY_PER_RUN` queued papers per source through the same pipeline before the new fetch; a successful retry sets `resolved_at`, a still-failing retry bumps `attempts`. After `PAPER_FETCH_MAX_RETRY_ATTEMPTS` consecutive failures the row is left in the table for human inspection. `PipelineSummary.per_source[name]["failed_papers"]` surfaces the count for the dashboard.
 
 ## Conventions
 
