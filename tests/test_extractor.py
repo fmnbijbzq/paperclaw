@@ -10,7 +10,7 @@ if str(_ROOT) not in sys.path:
 
 from app.enrichment import extractor as extractor_module
 from app.enrichment.chunker import chunk_text
-from app.enrichment.extractor import TextExtractor
+from app.enrichment.extractor import TextExtractor, _normalize_text, _strip_unpaired_surrogates
 from app.schemas import PaperRecord
 
 
@@ -112,3 +112,19 @@ def test_chunk_text_preserves_chinese_and_english_paragraph_boundaries():
         "Second paragraph explains vision models.",
         "第三段给出实验结论。",
     ]
+
+
+def test_strip_unpaired_surrogates_removes_high_surrogate():
+    assert _strip_unpaired_surrogates("hello\ud835world") == "helloworld"
+
+
+def test_strip_unpaired_surrogates_removes_low_surrogate():
+    assert _strip_unpaired_surrogates("a\udc00b") == "ab"
+
+
+def test_strip_unpaired_surrogates_keeps_normal_text():
+    assert _strip_unpaired_surrogates("hello world 你好") == "hello world 你好"
+
+
+def test_normalize_text_strips_surrogates_before_whitespace_collapse():
+    assert _normalize_text("foo  \ud835  bar") == "foo bar"

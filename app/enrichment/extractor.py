@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from io import BytesIO
 import logging
+import re
 from typing import Literal
 
 import httpx
@@ -183,9 +184,25 @@ class _HTMLTextExtractor(HTMLParser):
             self._parts.append(text)
 
 
+_SURROGATE_RE = re.compile(r"[\ud800-\udfff]")
+
+
+def _strip_unpaired_surrogates(value: str) -> str:
+    """Remove UTF-16 surrogate code points from a Python str.
+
+    Python str can hold any code point including bare surrogates; UTF-8
+    encoding rejects them. PDF extractors (notably pypdf on mathematical
+    italic SMP code points like 𝑥 = U+1D465) sometimes emit unpaired
+    high surrogates (e.g. \\ud835). Strip them at the boundary so they
+    cannot reach SQLite or downstream JSON.
+    """
+    return _SURROGATE_RE.sub("", value)
+
+
 def _normalize_text(value: str | None) -> str | None:
     if not value:
         return None
-    lines = [" ".join(line.split()) for line in value.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
+    cleaned = _strip_unpaired_surrogates(value)
+    lines = [" ".join(line.split()) for line in cleaned.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
     normalized = "\n".join(line for line in lines if line).strip()
     return normalized or None
