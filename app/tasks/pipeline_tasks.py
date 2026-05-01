@@ -4,7 +4,10 @@ from pathlib import Path
 from queue import Empty, Queue
 from threading import Event, Thread
 from typing import Any, Callable
+from uuid import uuid4
 import logging
+import os
+import socket
 
 from app.config import AppSettings, PROJECT_ROOT, load_source_config
 from app.editorial.pipeline import generate_editorial_files
@@ -86,6 +89,7 @@ class PipelineTaskRunner:
         editorial_runner: EditorialRunner | None = None,
         notification_runner: NotificationRunner = run_notification_cycle,
         notifier_factory: NotifierFactory = build_feishu_notifier,
+        worker_id: str | None = None,
     ) -> None:
         self._db = db
         self._settings_factory = settings_factory
@@ -97,6 +101,15 @@ class PipelineTaskRunner:
         self._queue: Queue[int] = Queue()
         self._stop_event = Event()
         self._worker: Thread | None = None
+        self._worker_id = worker_id or self._build_default_worker_id()
+
+    @staticmethod
+    def _build_default_worker_id() -> str:
+        return f"{socket.gethostname()}-{os.getpid()}-{uuid4().hex[:8]}"
+
+    @property
+    def worker_id(self) -> str:
+        return self._worker_id
 
     def enqueue(self, task_id: int) -> None:
         self._queue.put(task_id)
@@ -104,6 +117,12 @@ class PipelineTaskRunner:
     def start(self) -> None:
         if self._worker is not None and self._worker.is_alive():
             return
+        # Recover from a previous process crash before accepting new work:
+        #   * orphaned ``running`` tasks → mark failed (their worker is gone)
+        #   * surviving ``queued`` tasks → re-enqueue (in-memory queue is empty
+        #     because it lives in the dead process)
+        self._reclaim_orphaned_running()
+        self._enqueue_pending_queued()
         self._stop_event.clear()
         self._worker = Thread(target=self._work_loop, name="paperclaw-pipeline-task-runner", daemon=True)
         self._worker.start()
@@ -113,6 +132,24 @@ class PipelineTaskRunner:
         if self._worker is not None:
             self._worker.join(timeout=2)
 
+    def _reclaim_orphaned_running(self) -> None:
+        for task in self._db.list_pipeline_tasks_by_status("running"):
+            LOGGER.warning(
+                "pipeline task %s was stuck in 'running' on startup (worker=%s); marking failed",
+                task.task_id,
+                task.worker_id,
+            )
+            self._db.finish_pipeline_task(
+                task.task_id,
+                status="failed",
+                stage="failed",
+                error_message="orphaned by process restart",
+            )
+
+    def _enqueue_pending_queued(self) -> None:
+        for task in self._db.list_pipeline_tasks_by_status("queued"):
+            self._queue.put(task.task_id)
+
     def run_task_once(self, task_id: int) -> None:
         task = self._db.get_pipeline_task(task_id)
         if task is None:
@@ -120,13 +157,16 @@ class PipelineTaskRunner:
         if task.status == "cancelled":
             return
         if task.status != "queued":
-            raise ValueError(f"pipeline task {task_id} is not queued")
+            # Either claimed by another worker or already finished — skip silently.
+            return
+        if not self._db.claim_pipeline_task(task_id, worker_id=self._worker_id):
+            # Lost the race to another worker; nothing to do.
+            return
 
         settings = self._settings_factory()
         parameters = dict(task.parameters or {})
 
         try:
-            self._db.mark_pipeline_task_running(task_id, stage="crawl", progress_current=1)
             sources = self._source_factory()
             crawl_summary = self._pipeline_runner(
                 database_url=settings.database_url,

@@ -202,6 +202,7 @@ class PipelineTask(Base):
     parameters: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     result: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     error_message: Mapped[str | None] = mapped_column(Text)
+    worker_id: Mapped[str | None] = mapped_column(String(255))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

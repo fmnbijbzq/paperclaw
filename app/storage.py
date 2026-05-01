@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import create_engine, func, inspect, select, text
+from sqlalchemy import create_engine, func, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -527,6 +527,44 @@ class Database:
             session.commit()
             return task
 
+    def claim_pipeline_task(
+        self,
+        task_id: int,
+        *,
+        worker_id: str,
+        stage: str = "crawl",
+        progress_current: int = 1,
+    ) -> bool:
+        """Atomically transition a queued task to running for ``worker_id``.
+
+        Returns True if the caller now owns the task. Returns False if the
+        task does not exist, is not queued (e.g. cancelled, already claimed
+        by another worker), so callers should treat it as "not mine, skip".
+        """
+        with self._session() as session:
+            result = session.execute(
+                update(PipelineTask)
+                .where(
+                    PipelineTask.task_id == task_id,
+                    PipelineTask.status == "queued",
+                )
+                .values(
+                    status="running",
+                    current_stage=stage,
+                    progress_current=progress_current,
+                    worker_id=worker_id,
+                    started_at=utc_now(),
+                )
+                .execution_options(synchronize_session=False)
+            )
+            session.commit()
+            return result.rowcount == 1
+
+    def list_pipeline_tasks_by_status(self, status: str) -> list[PipelineTask]:
+        stmt = select(PipelineTask).where(PipelineTask.status == status).order_by(PipelineTask.task_id.asc())
+        with self._session() as session:
+            return list(session.scalars(stmt).all())
+
     def update_pipeline_task_progress(
         self,
         task_id: int,
@@ -627,6 +665,11 @@ class Database:
                 statements.append("ALTER TABLE export_records ADD COLUMN destination_path VARCHAR(1000)")
             if "error_message" not in export_columns:
                 statements.append("ALTER TABLE export_records ADD COLUMN error_message TEXT")
+
+        if inspector.has_table("pipeline_tasks"):
+            pipeline_task_columns = {column["name"] for column in inspector.get_columns("pipeline_tasks")}
+            if "worker_id" not in pipeline_task_columns:
+                statements.append("ALTER TABLE pipeline_tasks ADD COLUMN worker_id VARCHAR(255)")
 
         if not statements:
             return

@@ -141,6 +141,14 @@ conda run -n paperclaw uvicorn app.api.app:create_app --factory --reload
 The API starts at **http://localhost:8000** by default.  
 Visit **http://localhost:8000/docs** for the interactive Swagger UI.
 
+> **Single-worker only.** The dashboard's pipeline task runner is an
+> in-process daemon thread with a database-backed queue. Running uvicorn
+> with `--workers 2+` is currently unsafe — the per-process queues are
+> separate. Use `--workers 1` (the default) until a real out-of-process
+> queue is introduced. Restarts are safe: orphaned `running` tasks are
+> auto-marked `failed` and surviving `queued` tasks are re-enqueued at
+> startup.
+
 ---
 
 ## Frontend Setup

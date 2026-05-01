@@ -137,7 +137,7 @@ Set `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` (and the equivalent server-
 2. **PostgreSQL migration path.** No SQLite-specific features. Timezone-aware datetimes and JSON columns are used throughout `app/models.py`.
 3. **Error isolation per source.** Each source gets its own `CrawlRun`. Source exceptions are caught in `app/pipeline.py` and the run continues.
 4. **Notification independence.** A failed `notifier.send_combined(...)` never rolls back DB upserts; `notifications` rows record both successes and failures, and a paper stays pending until at least one `success=True` row exists.
-5. **Pipeline task runner is in-process.** Started in the FastAPI lifespan as a daemon thread. It is not durable across restarts — in-flight tasks will appear stuck in `running` if the API process dies. Treat this as a single-node dashboard tool, not a real job queue.
+5. **Pipeline task runner is in-process, single-worker only.** Started in the FastAPI lifespan as a daemon thread. The queue is in-memory but the runner **recovers from restarts**: on `start()` it (a) marks any `status='running'` task as `failed` with reason "orphaned by process restart" — its worker is gone — and (b) re-enqueues any `status='queued'` task. Each running row carries a `worker_id` and is acquired via an atomic `claim_pipeline_task` (UPDATE … WHERE status='queued'); a losing worker's `run_task_once` exits silently. Running uvicorn with `--workers 2+` is still **unsupported** because each process has its own in-memory queue.
 
 ## Conventions
 
