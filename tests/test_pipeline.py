@@ -229,3 +229,125 @@ def test_run_pipeline_replaces_placeholder_insight_with_real_output(tmp_path):
     assert refreshed.is_placeholder is False
     assert refreshed.generator == "llm-v1"
     assert refreshed.confidence_score == 0.93
+
+
+# ---------------------------------------------------------------------------
+# Per-paper error isolation + failure-queue retry
+# ---------------------------------------------------------------------------
+
+
+class _OneGoodOneBadSource:
+    """First record is fine, second triggers a writable upsert error mid-loop."""
+    name = "arxiv"
+
+    def fetch(self):
+        return [
+            PaperRecord(
+                source="arxiv",
+                source_paper_id="good-1",
+                title="Good Paper",
+                abstract="ok",
+                authors=["Alice"],
+                paper_url="https://arxiv.org/abs/good-1",
+            ),
+            PaperRecord(
+                source="arxiv",
+                source_paper_id="bad-2",
+                title="Bad Paper",
+                abstract="will explode at upsert time",
+                # \ud835 is an unpaired UTF-16 surrogate. SQLite UTF-8 write
+                # raises UnicodeEncodeError on it. We feed it directly into
+                # PaperRecord.full_text (bypassing TextExtractor's surrogate
+                # cleaner) so the per-paper try/except path is exercised
+                # against a real SQLite encoding error.
+                full_text="text with \ud835 surrogate",
+                authors=["Bob"],
+                paper_url="https://arxiv.org/abs/bad-2",
+            ),
+            PaperRecord(
+                source="arxiv",
+                source_paper_id="good-3",
+                title="Third Paper",
+                abstract="comes after the bad one",
+                authors=["Carol"],
+                paper_url="https://arxiv.org/abs/good-3",
+            ),
+        ]
+
+
+def test_one_bad_paper_does_not_abort_the_source_run(tmp_path):
+    """Spec acceptance: a single paper failing must not flip CrawlRun to
+    failed, must not skip subsequent papers, and must record the failure."""
+    database_url = f"sqlite:///{tmp_path/'papers.db'}"
+
+    summary = run_pipeline(
+        database_url=database_url,
+        sources=[_OneGoodOneBadSource()],
+        notifier=None,
+    )
+
+    db = Database(database_url)
+
+    # The two good papers got in.
+    assert db.count_papers() == 2
+    # CrawlRun for arxiv is success because source.fetch() worked.
+    runs = db.list_crawl_runs(source="arxiv", limit=10)
+    assert runs[0].status == "success"
+    assert runs[0].fetched_count == 3
+    assert runs[0].new_count == 2
+    # The bad paper sits in the failure queue.
+    pending = db.list_pending_failures(source="arxiv", limit=10)
+    assert len(pending) == 1
+    assert pending[0].source_paper_id == "bad-2"
+    assert pending[0].attempts == 1
+    # And the summary surfaces the per-source failure count.
+    assert summary.per_source["arxiv"]["failed_papers"] == 1
+    assert summary.per_source["arxiv"]["status"] == "success"
+
+
+class _NoOpSource:
+    """Fetches nothing - used to test the retry path independently of new fetches."""
+    name = "arxiv"
+
+    def fetch(self):
+        return []
+
+
+def test_pending_failure_is_retried_and_resolved_on_next_run(tmp_path):
+    database_url = f"sqlite:///{tmp_path/'papers.db'}"
+
+    # Round 1: the bad paper enters the failure queue.
+    run_pipeline(
+        database_url=database_url,
+        sources=[_OneGoodOneBadSource()],
+        notifier=None,
+    )
+
+    db = Database(database_url)
+    pending_before = db.list_pending_failures(source="arxiv", limit=10)
+    assert len(pending_before) == 1
+    bad_id = pending_before[0].failure_id
+
+    # Simulate the surrogate fix being applied to the queued payload (in
+    # real life the surrogate fix in extractor would prevent the failure
+    # ever happening; this test isolates the retry logic itself).
+    from app.enrichment.extractor import _strip_unpaired_surrogates
+    from app.models import PaperFetchFailure
+    with db._session() as session:
+        row = session.get(PaperFetchFailure, bad_id)
+        payload = dict(row.raw_payload)
+        payload["full_text"] = _strip_unpaired_surrogates(payload["full_text"])
+        row.raw_payload = payload
+        session.commit()
+
+    # No new fetch this round; only the retry path should fire.
+    run_pipeline(
+        database_url=database_url,
+        sources=[_NoOpSource()],
+        notifier=None,
+    )
+
+    pending_after = db.list_pending_failures(source="arxiv", limit=10)
+    assert pending_after == []
+    # The previously-failed paper is now in the papers table.
+    assert db.count_papers() == 3
