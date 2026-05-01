@@ -45,7 +45,13 @@ export function PaperDetailHero({ record }: PaperDetailHeroProps) {
                 置信度
               </dt>
               <dd className="mt-2 text-sm text-white">
-                {record.insight ? `${Math.round(record.insight.confidenceScore * 100)}% 置信度` : "未生成洞察"}
+                {record.insight
+                  ? record.insight.isPlaceholder
+                    ? "占位 (模板)"
+                    : record.insight.confidenceScore !== null
+                      ? `${Math.round(record.insight.confidenceScore * 100)}% 置信度`
+                      : "—"
+                  : "未生成洞察"}
               </dd>
             </div>
             <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-4">

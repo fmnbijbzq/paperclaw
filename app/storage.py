@@ -108,6 +108,8 @@ class Database:
             stored.limitations = list(insight.limitations)
             stored.applications = list(insight.applications)
             stored.confidence_score = insight.confidence_score
+            stored.is_placeholder = insight.is_placeholder
+            stored.generator = insight.generator
 
             session.commit()
             return stored
@@ -670,6 +672,19 @@ class Database:
             pipeline_task_columns = {column["name"] for column in inspector.get_columns("pipeline_tasks")}
             if "worker_id" not in pipeline_task_columns:
                 statements.append("ALTER TABLE pipeline_tasks ADD COLUMN worker_id VARCHAR(255)")
+
+        if inspector.has_table("paper_insights"):
+            insight_columns = {column["name"] for column in inspector.get_columns("paper_insights")}
+            if "is_placeholder" not in insight_columns:
+                # 旧数据全部视为占位（旧 service 实现产出的就是模板字符串）；
+                # 真实 LLM 重新生成时会写 is_placeholder=0 覆盖。
+                statements.append(
+                    "ALTER TABLE paper_insights ADD COLUMN is_placeholder BOOLEAN NOT NULL DEFAULT 1"
+                )
+            if "generator" not in insight_columns:
+                statements.append(
+                    "ALTER TABLE paper_insights ADD COLUMN generator VARCHAR(64) NOT NULL DEFAULT 'template-v1'"
+                )
 
         if not statements:
             return

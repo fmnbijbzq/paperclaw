@@ -118,3 +118,114 @@ def test_run_pipeline_continues_when_insight_generation_fails(tmp_path, monkeypa
 
     assert summary.total_new == 1
     assert summary.total_insighted == 0
+
+
+def test_run_pipeline_skips_resummarization_when_non_placeholder_insight_exists(tmp_path):
+    """切到真实 LLM 后，重复 run 不应对已有 insight 反复扣费。"""
+    from app.summarization.schemas import PaperInsightRecord
+    from app.summarization.service import SummarizationService
+
+    database_url = f"sqlite:///{tmp_path/'papers.db'}"
+
+    class CountingSummarizer(SummarizationService):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate(self, paper):
+            self.calls += 1
+            # 模拟真实 LLM 输出：is_placeholder=False
+            return PaperInsightRecord(
+                summary_short="real",
+                summary_long="real long",
+                novelty_points=["a", "b", "c"],
+                limitations=["x"],
+                applications=["y"],
+                confidence_score=0.9,
+                is_placeholder=False,
+                generator="llm-v1",
+            )
+
+    summarizer = CountingSummarizer()
+
+    first = run_pipeline(database_url=database_url, sources=[FakeSource()], notifier=None, summarizer=summarizer)
+    second = run_pipeline(database_url=database_url, sources=[FakeSource()], notifier=None, summarizer=summarizer)
+
+    assert first.total_insighted == 1
+    assert summarizer.calls == 1
+    # 第二次 run 跳过了 summarize：fetched=1（重复抓到），insighted=0。
+    assert second.total_fetched == 1
+    assert second.total_insighted == 0
+    assert summarizer.calls == 1
+
+
+def test_run_pipeline_force_resummarize_overrides_existing_insight(tmp_path):
+    """模型升级回填场景：开启 force 后即使存在真实 insight 也会重新生成。"""
+    from app.summarization.schemas import PaperInsightRecord
+    from app.summarization.service import SummarizationService
+
+    database_url = f"sqlite:///{tmp_path/'papers.db'}"
+
+    class CountingSummarizer(SummarizationService):
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def generate(self, paper):
+            self.calls += 1
+            return PaperInsightRecord(
+                summary_short=f"call {self.calls}",
+                summary_long="long",
+                is_placeholder=False,
+                generator="llm-v1",
+            )
+
+    summarizer = CountingSummarizer()
+    run_pipeline(database_url=database_url, sources=[FakeSource()], notifier=None, summarizer=summarizer)
+    assert summarizer.calls == 1
+
+    run_pipeline(
+        database_url=database_url,
+        sources=[FakeSource()],
+        notifier=None,
+        summarizer=summarizer,
+        force_resummarize=True,
+    )
+    assert summarizer.calls == 2
+
+
+def test_run_pipeline_replaces_placeholder_insight_with_real_output(tmp_path):
+    """旧数据是模板占位，新 service 切到真实 LLM 时应当被覆盖（不算重复扣费）。"""
+    from app.summarization.schemas import PaperInsightRecord
+    from app.summarization.service import SummarizationService
+
+    database_url = f"sqlite:///{tmp_path/'papers.db'}"
+
+    # 第一次：默认模板 service，写入 is_placeholder=True
+    placeholder_summarizer = SummarizationService()
+    run_pipeline(database_url=database_url, sources=[FakeSource()], notifier=None, summarizer=placeholder_summarizer)
+
+    db = Database(database_url)
+    paper = db.list_papers_with_insights(limit=1)[0][0]
+    insight = db.get_paper_insight(paper_id=paper.paper_id)
+    assert insight.is_placeholder is True
+
+    # 第二次：真实 LLM service，应当覆盖
+    class RealSummarizer:
+        calls = 0
+
+        def generate(self, paper_record):
+            RealSummarizer.calls += 1
+            return PaperInsightRecord(
+                summary_short="real",
+                summary_long="real long",
+                is_placeholder=False,
+                generator="llm-v1",
+                confidence_score=0.93,
+            )
+
+    run_pipeline(database_url=database_url, sources=[FakeSource()], notifier=None, summarizer=RealSummarizer())
+    assert RealSummarizer.calls == 1
+
+    refreshed = db.get_paper_insight(paper_id=paper.paper_id)
+    assert refreshed.is_placeholder is False
+    assert refreshed.generator == "llm-v1"
+    assert refreshed.confidence_score == 0.93

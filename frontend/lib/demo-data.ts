@@ -123,6 +123,8 @@ export const insights: PaperInsightItem[] = [
       "Dataset triage for multimodal labs",
     ],
     confidenceScore: 0.92,
+    isPlaceholder: false,
+    generator: "demo",
     updatedAt: "2026-04-26T03:00:00Z",
   },
   {
@@ -146,6 +148,8 @@ export const insights: PaperInsightItem[] = [
       "Execution trace visualization",
     ],
     confidenceScore: 0.88,
+    isPlaceholder: false,
+    generator: "demo",
     updatedAt: "2026-04-25T11:40:00Z",
   },
   {
@@ -169,6 +173,8 @@ export const insights: PaperInsightItem[] = [
       "Storage-aware ML pipelines",
     ],
     confidenceScore: 0.85,
+    isPlaceholder: false,
+    generator: "demo",
     updatedAt: "2026-04-22T12:10:00Z",
   },
   {
@@ -192,6 +198,8 @@ export const insights: PaperInsightItem[] = [
       "Deployment drift audits",
     ],
     confidenceScore: 0.9,
+    isPlaceholder: false,
+    generator: "demo",
     updatedAt: "2026-04-26T08:05:00Z",
   },
 ];

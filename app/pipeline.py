@@ -28,8 +28,20 @@ class PipelineSummary:
         return bool(self.failed_sources)
 
 
-def run_pipeline(database_url: str, sources: list, notifier=None, summarizer: SummarizationService | None = None) -> PipelineSummary:
-    """运行完整的爬虫管道：抓取 -> 标准化 -> 去重入库 -> 通知。"""
+def run_pipeline(
+    database_url: str,
+    sources: list,
+    notifier=None,
+    summarizer: SummarizationService | None = None,
+    *,
+    force_resummarize: bool = False,
+) -> PipelineSummary:
+    """运行完整的爬虫管道：抓取 -> 标准化 -> 去重入库 -> 通知。
+
+    若某篇论文已存在非占位 insight，默认跳过 summarization 以保证幂等
+    （切到真实 LLM 后这一点会显著节省成本）。传 ``force_resummarize=True``
+    可强制重新生成，用于模型升级后回填。
+    """
     LOGGER.info(f"正在连接到数据库：{database_url}")
     db = Database(database_url)
     db.create_schema()
@@ -83,10 +95,21 @@ def run_pipeline(database_url: str, sources: list, notifier=None, summarizer: Su
                     summary.new_papers.append(normalized)
 
                 try:
-                    insight = summarizer.generate(normalized)
-                    db.upsert_paper_insight(paper_id=result.paper.paper_id, insight=insight)
-                    summary.total_insighted += 1
-                    sum_insights_generated += 1
+                    existing = db.get_paper_insight(paper_id=result.paper.paper_id)
+                    needs_insight = (
+                        force_resummarize
+                        or existing is None
+                        or bool(getattr(existing, "is_placeholder", True))
+                    )
+                    if not needs_insight:
+                        # 已存在真实 insight，本轮跳过：保持 run_pipeline 幂等，
+                        # 也避免切到真实 LLM 时反复扣费。
+                        LOGGER.debug("  论文 [%s] 已有非占位 insight，跳过总结", normalized.title)
+                    else:
+                        insight = summarizer.generate(normalized)
+                        db.upsert_paper_insight(paper_id=result.paper.paper_id, insight=insight)
+                        summary.total_insighted += 1
+                        sum_insights_generated += 1
                 except Exception as insight_exc:
                     LOGGER.warning("  论文总结失败 [%s]: %s", normalized.title, insight_exc)
                     sum_failures += 1

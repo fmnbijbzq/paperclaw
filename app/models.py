@@ -114,6 +114,8 @@ class PaperInsight(Base):
     limitations: Mapped[list[str]] = mapped_column(JSON, default=list)
     applications: Mapped[list[str]] = mapped_column(JSON, default=list)
     confidence_score: Mapped[float | None] = mapped_column(Float)
+    is_placeholder: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    generator: Mapped[str] = mapped_column(String(64), default="template-v1", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

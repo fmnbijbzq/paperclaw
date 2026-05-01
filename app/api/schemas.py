@@ -55,6 +55,8 @@ class PaperInsightItem(ApiModel):
     limitations: list[str]
     applications: list[str]
     confidence_score: float | None = Field(alias="confidenceScore")
+    is_placeholder: bool = Field(default=True, alias="isPlaceholder")
+    generator: str = "template-v1"
     updated_at: str = Field(alias="updatedAt")
 
 
@@ -62,6 +64,7 @@ class PaperInsightPreview(ApiModel):
     insight_id: int = Field(alias="insightId")
     summary_short: str = Field(alias="summaryShort")
     confidence_score: float | None = Field(alias="confidenceScore")
+    is_placeholder: bool = Field(default=True, alias="isPlaceholder")
     updated_at: str = Field(alias="updatedAt")
 
 

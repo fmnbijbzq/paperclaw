@@ -18,7 +18,6 @@ class SummarizationService:
         novelty_points = self._build_novelty_points(paper, core_text)
         limitations = self._build_limitations(paper)
         applications = self._build_applications(paper, core_text)
-        confidence = self._estimate_confidence(paper)
 
         return PaperInsightRecord(
             summary_short=summary_short,
@@ -26,7 +25,13 @@ class SummarizationService:
             novelty_points=novelty_points,
             limitations=limitations,
             applications=applications,
-            confidence_score=confidence,
+            # 模板拼接结果不是真实模型输出，confidence_score 留空，
+            # 由 is_placeholder=True 让前端显式标记 "未启用 AI 摘要"。
+            # 真实 LLM 实现应继承本类并在子类中设置 is_placeholder=False
+            # 与 confidence_score=<模型给出的真实分数>。
+            confidence_score=None,
+            is_placeholder=True,
+            generator="template-v1",
         )
 
     @staticmethod
@@ -76,11 +81,3 @@ class SummarizationService:
             apps.append("可扩展到视觉任务基线选型与实验设计参考。")
         apps.append("可作为短视频/图文平台的研究解读素材。")
         return apps[:5]
-
-    @staticmethod
-    def _estimate_confidence(paper: PaperRecord) -> float:
-        if paper.full_text and paper.abstract:
-            return 0.86
-        if paper.abstract:
-            return 0.72
-        return 0.55

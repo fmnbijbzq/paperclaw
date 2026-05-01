@@ -5,13 +5,24 @@ interface InsightPanelProps {
   title: string;
   body?: string | null;
   items?: string[];
+  isPlaceholder?: boolean;
 }
 
-export function InsightPanel({ title, body, items }: InsightPanelProps) {
+export function InsightPanel({ title, body, items, isPlaceholder }: InsightPanelProps) {
   const hasItems = Boolean(items && items.length > 0);
+  const hasContent = Boolean(body) || hasItems;
 
   return (
     <SectionCard title={title} className="h-full">
+      {hasContent && isPlaceholder ? (
+        <p
+          className="mb-3 inline-flex items-center gap-2 rounded-full border border-[color:var(--border-warning,#7a5a00)] bg-[rgba(122,90,0,0.18)] px-3 py-1 text-xs font-medium text-[color:var(--accent-amber)]"
+          aria-label="未启用真实 AI 摘要，当前展示模板拼接结果"
+        >
+          ⚠ 模板生成内容
+          <span className="font-normal text-[color:var(--text-dim)]">未启用 AI 摘要</span>
+        </p>
+      ) : null}
       {body ? <p className="text-sm leading-7 subtle-copy">{body}</p> : null}
       {hasItems ? (
         <ul className="space-y-3">
@@ -25,7 +36,7 @@ export function InsightPanel({ title, body, items }: InsightPanelProps) {
           ))}
         </ul>
       ) : null}
-      {!body && !hasItems ? (
+      {!hasContent ? (
         <EmptyState
           compact
           title="洞察待生成"

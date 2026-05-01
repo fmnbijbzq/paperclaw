@@ -11,3 +11,5 @@ class PaperInsightRecord:
     limitations: list[str] = field(default_factory=list)
     applications: list[str] = field(default_factory=list)
     confidence_score: float | None = None
+    is_placeholder: bool = True
+    generator: str = "template-v1"

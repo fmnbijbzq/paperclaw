@@ -55,6 +55,8 @@ def _insight_to_item(insight: PaperInsight) -> PaperInsightItem:
         limitations=list(insight.limitations or []),
         applications=list(insight.applications or []),
         confidenceScore=insight.confidence_score,
+        isPlaceholder=bool(insight.is_placeholder),
+        generator=insight.generator or "template-v1",
         updatedAt=_iso(insight.updated_at),
     )
 
@@ -152,13 +154,36 @@ def list_papers(
         if limit is not None:
             papers_stmt = papers_stmt.limit(limit)
         papers = list(session.scalars(papers_stmt))
-        insights = {item.paper_id: item for item in session.scalars(select(PaperInsight)).all()}
-        notifications_by_paper: dict[int, list[Notification]] = defaultdict(list)
-        for notification in session.scalars(select(Notification).order_by(Notification.sent_at.asc())).all():
-            notifications_by_paper[notification.paper_id].append(notification)
-        drafts_by_paper: dict[int, int] = defaultdict(int)
-        for draft in session.scalars(select(EditorialDraft)).all():
-            drafts_by_paper[draft.paper_id] += 1
+
+        # 旧实现对 insights / notifications / editorial_drafts 三张表都做了
+        # 全表 SELECT，论文增多后会内存爆。这里只查询当前页 paper_id 范围。
+        page_ids = [paper.paper_id for paper in papers]
+        if page_ids:
+            insights = {
+                item.paper_id: item
+                for item in session.scalars(
+                    select(PaperInsight).where(PaperInsight.paper_id.in_(page_ids))
+                )
+            }
+            notifications_by_paper: dict[int, list[Notification]] = defaultdict(list)
+            for notification in session.scalars(
+                select(Notification)
+                .where(Notification.paper_id.in_(page_ids))
+                .order_by(Notification.sent_at.asc())
+            ):
+                notifications_by_paper[notification.paper_id].append(notification)
+            drafts_by_paper: dict[int, int] = {
+                paper_id: count
+                for paper_id, count in session.execute(
+                    select(EditorialDraft.paper_id, func.count(EditorialDraft.draft_id))
+                    .where(EditorialDraft.paper_id.in_(page_ids))
+                    .group_by(EditorialDraft.paper_id)
+                ).all()
+            }
+        else:
+            insights = {}
+            notifications_by_paper = defaultdict(list)
+            drafts_by_paper = {}
 
     items: list[PaperListItem] = []
     for paper in papers:
@@ -171,6 +196,7 @@ def list_papers(
                 insightId=insight.insight_id,
                 summaryShort=insight.summary_short,
                 confidenceScore=insight.confidence_score,
+                isPlaceholder=bool(insight.is_placeholder),
                 updatedAt=_iso(insight.updated_at),
             )
         items.append(

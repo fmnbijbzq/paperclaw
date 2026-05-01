@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 import logging
 
@@ -15,7 +16,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 SOURCE_CONFIG_PATH = PROJECT_ROOT / "config" / "sources.yaml"
 
 
-def run_pipeline_from_config() -> int:
+def run_pipeline_from_config(*, force_resummarize: bool = False) -> int:
     """根据配置文件运行主流程。"""
     LOGGER.info("开始初始化 PaperCrawler")
     LOGGER.info("正在加载配置...")
@@ -102,6 +103,7 @@ def run_pipeline_from_config() -> int:
         database_url=settings.database_url,
         sources=sources,
         notifier=None,
+        force_resummarize=force_resummarize,
     )
 
     LOGGER.info("爬虫管道执行完成")
@@ -117,8 +119,15 @@ def run_pipeline_from_config() -> int:
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Paperclaw 一次性抓取入口")
+    parser.add_argument(
+        "--force-resummarize",
+        action="store_true",
+        help="对已有 insight 的论文也重新生成总结（默认跳过非占位 insight）",
+    )
+    args = parser.parse_args()
     try:
-        return run_pipeline_from_config()
+        return run_pipeline_from_config(force_resummarize=args.force_resummarize)
     except Exception:
         LOGGER.exception("paperclaw run failed")
         return 1

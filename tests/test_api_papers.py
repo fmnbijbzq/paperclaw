@@ -111,12 +111,62 @@ def test_list_papers_returns_contract_shaped_items(tmp_path):
     assert item["paper"]["paperId"] >= 1
     assert item["insight"]["summaryShort"] == "Short summary."
     assert item["insight"]["confidenceScore"] == 0.91
+    # 占位标记被透传到列表预览，前端据此显示徽标。
+    assert item["insight"]["isPlaceholder"] is True
     assert item["notificationSummary"] == {
         "totalAttempts": 1,
         "latestStatus": "delivered",
         "lastSentAt": item["notificationSummary"]["lastSentAt"],
     }
     assert item["editorialDraftCount"] == 0
+
+
+def test_list_papers_only_loads_page_scoped_relations_to_avoid_n_plus_one(tmp_path):
+    """旧实现对 insights/notifications/drafts 三张表都做全表 SELECT。
+
+    本测试种 50 篇论文，请求 limit=5；用 SQLAlchemy event 钩 SELECT 数量，
+    断言每张关联表的 SELECT 都只命中当前页 paper_id（即 ``IN (...)`` 子句
+    只包含 5 个 id），从而避免随论文增多而 OOM。
+    """
+    from sqlalchemy import event
+    from app.storage import Database
+
+    database_url = f"sqlite:///{tmp_path/'papers.db'}"
+    db = Database(database_url)
+    db.create_schema()
+
+    for i in range(50):
+        paper = db.upsert_paper(_build_paper(source_paper_id=f"id-{i:03d}", title=f"Paper {i}"))
+        if i % 7 == 0:
+            db.upsert_paper_insight(
+                paper_id=paper.paper_id,
+                insight=PaperInsightRecord(
+                    summary_short=f"short {i}",
+                    summary_long=f"long {i}",
+                ),
+            )
+        if i % 11 == 0:
+            db.record_notification_attempt(destination="feishu", paper=paper, success=True)
+
+    captured: list[str] = []
+
+    @event.listens_for(db.engine, "before_cursor_execute")
+    def _capture(conn, cursor, statement, parameters, context, executemany):
+        captured.append(statement)
+
+    client = _make_client(tmp_path)
+    response = client.get("/papers?limit=5")
+    assert response.status_code == 200
+    assert len(response.json()["data"]["items"]) == 5
+
+    relation_selects = [
+        sql for sql in captured
+        if any(token in sql for token in ("paper_insights", "notifications", "editorial_drafts"))
+    ]
+    # 每张关联表至多 1 次 SELECT（带 IN(?,?,...,?) 限制到当前页 id）；
+    # 旧实现会出现不带 WHERE 的全表 SELECT。
+    for sql in relation_selects:
+        assert "IN (" in sql or "in (" in sql, f"unexpected un-bounded select: {sql!r}"
 
 
 def test_list_paper_insights_returns_full_insight_records(tmp_path):

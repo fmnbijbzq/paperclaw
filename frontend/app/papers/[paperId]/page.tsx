@@ -64,14 +64,34 @@ export default async function PaperDetailPage({ params }: PaperDetailPageProps) 
       <PaperDetailHero record={record} />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
-        <InsightPanel title="短摘要" body={record.insight?.summaryShort} />
-        <InsightPanel title="长摘要" body={record.insight?.summaryLong} />
+        <InsightPanel
+          title="短摘要"
+          body={record.insight?.summaryShort}
+          isPlaceholder={record.insight?.isPlaceholder}
+        />
+        <InsightPanel
+          title="长摘要"
+          body={record.insight?.summaryLong}
+          isPlaceholder={record.insight?.isPlaceholder}
+        />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-3">
-        <InsightPanel title="创新点" items={record.insight?.noveltyPoints} />
-        <InsightPanel title="局限性" items={record.insight?.limitations} />
-        <InsightPanel title="应用场景" items={record.insight?.applications} />
+        <InsightPanel
+          title="创新点"
+          items={record.insight?.noveltyPoints}
+          isPlaceholder={record.insight?.isPlaceholder}
+        />
+        <InsightPanel
+          title="局限性"
+          items={record.insight?.limitations}
+          isPlaceholder={record.insight?.isPlaceholder}
+        />
+        <InsightPanel
+          title="应用场景"
+          items={record.insight?.applications}
+          isPlaceholder={record.insight?.isPlaceholder}
+        />
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)]">

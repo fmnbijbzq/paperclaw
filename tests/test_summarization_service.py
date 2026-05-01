@@ -37,7 +37,10 @@ def test_summarization_service_returns_structured_fields():
     assert len(insight.novelty_points) >= 3
     assert len(insight.limitations) >= 1
     assert len(insight.applications) >= 1
-    assert insight.confidence_score is not None
+    # 模板 service 不输出真实置信度，前端据此显示"未启用 AI 摘要"徽标。
+    assert insight.confidence_score is None
+    assert insight.is_placeholder is True
+    assert insight.generator == "template-v1"
 
 
 def test_summarization_service_falls_back_without_full_text():
@@ -67,4 +70,6 @@ def test_summarization_service_handles_missing_abstract_and_full_text():
     )
 
     assert "Title Only Paper" in insight.summary_short
-    assert insight.confidence_score == 0.55
+    # 模板 service 不再硬编码 confidence；占位 insight 的 confidence_score 留空。
+    assert insight.confidence_score is None
+    assert insight.is_placeholder is True

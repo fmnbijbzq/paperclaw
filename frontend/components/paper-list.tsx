@@ -63,7 +63,13 @@ export function PaperList({ records }: PaperListProps) {
                       洞察
                     </p>
                     <p className="mt-3 text-sm text-white">
-                      {record.insight ? `${Math.round(record.insight.confidenceScore * 100)}% 置信度` : "未生成"}
+                      {record.insight
+                        ? record.insight.isPlaceholder
+                          ? "占位 (模板)"
+                          : record.insight.confidenceScore !== null
+                            ? `${Math.round(record.insight.confidenceScore * 100)}% 置信度`
+                            : "—"
+                        : "未生成"}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-[color:var(--border-subtle)] bg-[rgba(7,17,31,0.55)] p-3">

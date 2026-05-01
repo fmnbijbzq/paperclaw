@@ -13,7 +13,8 @@ def test_project_root_contains_run_once_script():
 
 
 def test_main_returns_zero_when_pipeline_succeeds(monkeypatch):
-    monkeypatch.setattr("run_once.run_pipeline_from_config", lambda: 0)
+    monkeypatch.setattr("run_once.run_pipeline_from_config", lambda **kwargs: 0)
+    monkeypatch.setattr("sys.argv", ["run_once.py"])
 
     assert main() == 0
 
@@ -27,7 +28,7 @@ def test_run_pipeline_from_config_builds_enabled_sources_and_notifier(monkeypatc
         timezone = "Asia/Shanghai"
         max_notify_items = 5
 
-    def fake_run_pipeline(*, database_url, sources, notifier):
+    def fake_run_pipeline(*, database_url, sources, notifier, **_kwargs):
         captured["database_url"] = database_url
         captured["sources"] = sources
         captured["notifier"] = notifier
@@ -68,7 +69,7 @@ def test_run_pipeline_from_config_builds_cvf_source_when_enabled(monkeypatch):
         timezone = "Asia/Shanghai"
         max_notify_items = 5
 
-    def fake_run_pipeline(*, database_url, sources, notifier):
+    def fake_run_pipeline(*, database_url, sources, notifier, **_kwargs):
         captured["sources"] = sources
 
         class Summary:

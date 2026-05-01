@@ -27,7 +27,9 @@ export interface PaperInsightItem {
   noveltyPoints: string[];
   limitations: string[];
   applications: string[];
-  confidenceScore: number;
+  confidenceScore: number | null;
+  isPlaceholder: boolean;
+  generator: string;
   updatedAt: string;
 }
 
