@@ -63,6 +63,7 @@ export default async function PipelinePage() {
       >
         <PipelineTaskControl
           apiBaseUrl={runtimeConfig.apiBaseUrl}
+          apiKey={runtimeConfig.apiKey}
           dataSource={runtimeConfig.dataSource}
           initialTasks={tasks}
         />

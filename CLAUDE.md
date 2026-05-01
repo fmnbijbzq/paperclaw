@@ -4,155 +4,151 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Paperclaw is a Python-based paper crawler that collects AI vision papers from multiple sources (arXiv, OpenReview), stores them in a SQLite database, and sends daily Feishu notifications.
+Paperclaw is a Python paper crawler + content pipeline + dashboard for AI vision papers from arXiv, OpenReview, and CVF. It stores papers in a database, generates per-paper insights, composes platform-specific editorial drafts, and sends Feishu notifications. A Next.js dashboard fronts a FastAPI server for browsing and operating the system.
 
-**Core Principle:** "Grab all, store first, notify only new." The system is designed for idempotent execution with daily cron scheduling.
+**Core principle:** "Grab all, store first, notify only new." The crawler is idempotent; storage success is independent of notification success.
 
 ## Architecture
 
-### Module Structure
+The system has **four surfaces**, each able to run independently:
 
 ```
-runtime entrypoint          -> data normalization  -> database upsert
-       ↓                                                                           ↓
-app/sources/*.py           app/normalizer.py      app/storage.py
-(BaseSource adapters)                                              ↓
-                               ↓                                    ↓
-                               └─────────────► app/pipeline.py ◄───┘
-                                                               ↓
-                                                        app/notifiers/
+run_once.py              fetch -> normalize -> upsert -> summarize       (cron: daily)
+run_notify_once.py       select unnotified -> send -> record             (cron: every 10m)
+app.api.app:create_app   FastAPI server + in-process PipelineTaskRunner  (long-running)
+frontend/                Next.js 15 dashboard                            (long-running)
 ```
 
-### Key Files
+`run_once.py` does **not** notify — that is the job of `run_notify_once.py`, which runs as a separate cron entry so failed sends can be retried in the next cycle. The FastAPI server hosts a thread-based `PipelineTaskRunner` that orchestrates crawl → editorial → notify stages on demand from the dashboard.
 
-| File | Purpose |
-|------|--------|
-| `run_once.py` | Single-execution entry point for cron/manual runs |
-| `app/pipeline.py` | Orchestrates fetch → normalize → upsert → notify flow |
-| `app/storage.py` | Database operations via SQLAlchemy |
-| `app/models.py` | SQLAlchemy ORM models (Paper, PaperVersion, CrawlRun, Notification) |
-| `app/sources/base.py` | BaseSource abstract class for source adapters |
-| `app/normalizer.py` | Builds dedup_key for cross-source duplicate detection |
+### Module layout
 
-### Source Adapters
+| Path | Role |
+|------|------|
+| `app/pipeline.py` | Crawl orchestration: fetch → normalize → upsert → summarize. Records a `CrawlRun` per source and a `SummarizationRun` per pipeline run. |
+| `app/notification_pipeline.py` | Selects unnotified papers and sends one combined Feishu message per cycle. Each attempt is persisted in `notifications`. |
+| `app/sources/{arxiv,openreview,cvf}.py` | Adapters extending `BaseSource`; each `fetch()` returns `list[PaperRecord]`. |
+| `app/normalizer.py` | Builds `dedup_key` (hashed title + first_author + year) for cross-source soft matching. |
+| `app/storage.py` | All database operations via SQLAlchemy. Single `Database` class. |
+| `app/models.py` | ORM models — see schema below. |
+| `app/summarization/service.py` | Generates `PaperInsight` (short/long summary, novelty, limitations, applications). |
+| `app/enrichment/{chunker,extractor}.py` | PDF text chunking and content extraction used by summarization. |
+| `app/editorial/{composer,pipeline}.py` | Renders Jinja2 templates (`templates/{bilibili,xiaohongshu,douyin}.md.j2`) into `outputs/editorial/YYYY-MM-DD/` and inserts `EditorialDraft` rows. |
+| `app/publish/{base,bilibili,xiaohongshu,douyin,exporter}.py` | Per-platform publish adapters and the `outputs/exported/` exporter. |
+| `app/notifiers/feishu_bot.py` | Feishu webhook client; HMAC signs when `FEISHU_BOT_SECRET` is set. |
+| `app/tasks/pipeline_tasks.py` | `PipelineTaskRunner`: queue + worker thread that runs full crawl → editorial → notify against a single `PipelineTask` row. Started/stopped via the FastAPI lifespan. |
+| `app/api/app.py` | `create_app(...)` factory. Wires DB, editorial root, and starts the task runner. |
+| `app/api/routes/{papers,drafts,destinations,notifications,pipeline}.py` | REST endpoints; all responses use the `create_envelope(...)` shape. |
+| `frontend/lib/data-sources/{http,demo}/` | Frontend swaps between live HTTP and demo data based on `NEXT_PUBLIC_API_BASE_URL` / `PAPERCLAW_DATA_SOURCE`. With no API URL, the dashboard runs entirely on demo data. |
 
-Each source (`arxiv.py`, `openreview.py`, `cvf.py`) extends `BaseSource` and implements `fetch()` returning `list[PaperRecord]`. The base class provides `_get()` and `_post()` HTTP methods.
+### Database schema
 
-### Database Schema
+Tables: `papers`, `paper_versions`, `paper_insights`, `editorial_drafts`, `export_records`, `destination_records`, `crawl_runs`, `summarization_runs`, `editorial_runs`, `pipeline_tasks`, `notifications`.
 
-- **papers**: Main table with `(source, source_paper_id)` unique constraint
-- **paper_versions**: Version history for detecting paper metadata changes
-- **crawl_runs**: Execution tracking per source per run
-- **notifications**: Records which papers have been notified to avoid duplicates
+- `papers` has a `(source, source_paper_id)` unique constraint.
+- `paper_versions` is appended whenever upsert detects field changes (enables future "paper updated" notifications).
+- `paper_insights` is 1:1 with `papers` (`uq_paper_insights_paper_id`).
+- `editorial_drafts` is 1:(paper_id, platform); each draft moves through statuses `generated → approved/rejected → exported`, with reviewer/approver fields.
+- `pipeline_tasks` tracks dashboard-triggered runs with `current_stage` (`queued → crawl → editorial → notify → done | failed`) and `progress_current/progress_total`.
+- `notifications` is append-only — a paper is "pending" if it has no `success=True` row for a given destination; failed sends remain retryable.
 
-### Deduplication Strategy
+### Deduplication strategy
 
-1. **Same-source dedup**: Guaranteed by `(source, source_paper_id)` unique constraint
-2. **Cross-source dedup**: Soft matching via `dedup_key` (hashed title + first_author + year) — papers are NOT merged, just flagged as potential duplicates
+1. **Same source:** enforced by the `(source, source_paper_id)` unique constraint.
+2. **Cross source:** soft via `dedup_key`. Papers from different sources are **never merged** — the key is only stored for future flagging/analytics.
 
-### Notifier Design
+### Editorial / publish flow
 
-The notifier receives a `PipelineSummary` with `new_papers` list. Notification failure does NOT roll back database operations — they are independently tracked.
+1. `run_once.py` (or a `pipeline_tasks` run) fills `papers` and `paper_insights`.
+2. `scripts/run_content_pipeline.py --limit N` (or the task runner's editorial stage) renders drafts via `app/editorial/composer.py` into `outputs/editorial/YYYY-MM-DD/<platform>/<slug>.md` and inserts `EditorialDraft` rows.
+3. Humans review/approve drafts (via dashboard or directly editing files).
+4. `scripts/export_for_publish.py --date YYYY-MM-DD` copies approved drafts into `outputs/exported/YYYY-MM-DD/` and writes `export_records`.
 
 ## Common Commands
 
-### Development Setup
+The Makefile assumes a conda env named `paperclaw` and uses `uv` underneath. Use `make` targets when available; raw equivalents are shown for non-conda setups.
+
+### Setup
 
 ```bash
-python -m pip install -e .[dev]
+make env              # create conda env from environment.yml
+make sync             # uv sync --extra dev (installs dev deps)
+
+# Without conda:
+uv sync --extra dev   # or: python -m pip install -e .[dev]
 ```
 
-### Run the Pipeline
+### Run
 
 ```bash
-python run_once.py
+make run              # python run_once.py — crawl + summarize
+make notify           # python run_notify_once.py — send pending notifications
+make smoke            # scripts/send_test_feishu_message.py — webhook sanity check
+
+# API server (dashboard backend):
+conda run -n paperclaw uvicorn app.api.app:create_app --factory --reload
+
+# Frontend dashboard:
+cd frontend && npm install && npm run dev   # http://localhost:3000
 ```
 
-### Run All Tests
+The dashboard works without the API: leave `NEXT_PUBLIC_API_BASE_URL` unset and it uses demo data.
+
+### Tests
 
 ```bash
-pytest tests/ -q
-```
+make test                                                 # all tests via uv
+pytest tests/ -q                                          # equivalent
+pytest tests/test_pipeline.py -q                          # one file
+pytest tests/test_api_pipeline.py -q                      # one API route's tests
+pytest -q -m integration                                  # live network tests (skipped by default)
 
-### Run Specific Test File
+# Live Feishu integration:
+FEISHU_BOT_WEBHOOK='https://...' pytest -q -m integration
 
-```bash
-pytest tests/test_arxiv_source.py -q
-```
-
-### Run Live Feishu Integration Test
-
-```bash
-FEISHU_BOT_WEBHOOK='https://open.feishu.cn/open-apis/bot/v2/hook/xxxx' pytest -q -m integration
-```
-
-### Send Test Feishu Message
-
-```bash
-FEISHU_BOT_WEBHOOK='https://open.feishu.cn/open-apis/bot/v2/hook/xxxx' python scripts/send_test_feishu_message.py
+# Frontend tests:
+cd frontend && npm run test
 ```
 
 ## Configuration
 
-### Environment Variables (`.env`)
+### `.env`
 
-| Variable | Description |
-|----------|-------------|
-| `DATABASE_URL` | SQLite path, e.g., `sqlite:///data/papers.db` |
-| `FEISHU_BOT_WEBHOOK` | Feishu webhook URL (optional) |
-| `FEISHU_BOT_SECRET` | Secret for HMAC signature if enabled |
-| `LOG_LEVEL` | Default: `INFO` |
-| `TIMEZONE` | Default: `Asia/Shanghai` |
-| `MAX_NOTIFY_ITEMS` | Max papers shown in notification, default: 10 |
+| Variable | Purpose |
+|----------|---------|
+| `DATABASE_URL` | SQLite path, e.g. `sqlite:///data/papers.db` |
+| `FEISHU_BOT_WEBHOOK` | Feishu webhook URL (notifier disabled when empty) |
+| `FEISHU_BOT_SECRET` | If set, notifier adds `timestamp` + HMAC `sign` to each request |
+| `MAX_NOTIFY_ITEMS` | Cap on papers per combined Feishu message (default 10) |
+| `LOG_LEVEL`, `LOG_FORMAT`, `LOG_INCLUDE_LOCATION`, `LOG_FILE` | See `app/logging.py` |
+| `TIMEZONE` | IANA tz, default `Asia/Shanghai` |
 
-### Source Configuration (`config/sources.yaml`)
+### `config/sources.yaml`
 
-```yaml
-arxiv:
-  enabled: true
-  categories:
-    - cs.CV
-  lookback_days: 2
+Three top-level keys: `arxiv`, `openreview`, `cvf`. Each has `enabled`, `lookback_days`, and source-specific knobs (`categories` / `venues` / `conferences`+`year`+`max_results`). Disabled sources are skipped at runtime; one source failing does not block others.
 
-openreview:
-  enabled: true
-  venues:
-    - CVPR
-    - ICCV
-    - ECCV
-  lookback_days: 3
-```
+### Frontend env (`frontend/.env.local`)
+
+Set `NEXT_PUBLIC_API_BASE_URL=http://localhost:8000` (and the equivalent server-side `PAPERCLAW_API_BASE_URL` + `PAPERCLAW_DATA_SOURCE=http`) to connect to the live backend. Without these, the dashboard uses bundled demo data.
 
 ## Design Considerations
 
-1. **PostgreSQL Migration Path**: The code avoids SQLite-specific features. Timezone-aware datetimes and JSON columns are used for compatibility.
+1. **Two cron entries, not one.** `run_once.py` (8 AM daily) crawls and summarizes; `run_notify_once.py` (every 10 min) drains the unnotified queue. See `scripts/setup_cron.example`.
+2. **PostgreSQL migration path.** No SQLite-specific features. Timezone-aware datetimes and JSON columns are used throughout `app/models.py`.
+3. **Error isolation per source.** Each source gets its own `CrawlRun`. Source exceptions are caught in `app/pipeline.py` and the run continues.
+4. **Notification independence.** A failed `notifier.send_combined(...)` never rolls back DB upserts; `notifications` rows record both successes and failures, and a paper stays pending until at least one `success=True` row exists.
+5. **Pipeline task runner is in-process.** Started in the FastAPI lifespan as a daemon thread. It is not durable across restarts — in-flight tasks will appear stuck in `running` if the API process dies. Treat this as a single-node dashboard tool, not a real job queue.
 
-2. **Error Isolation**: Each source run is tracked in a separate `CrawlRun` record. One source failing does not block others.
+## Conventions
 
-3. **Cron Deployment**: Example at `scripts/setup_cron.example`. Typical schedule: `0 8 * * *` (8 AM daily).
-
-4. **Versioning**: When a paper's fields change, a `PaperVersion` snapshot is created. This enables future "paper update notifications."
-
-5. **Feishu Signature Verification**: If `FEISHU_BOT_SECRET` is set, the notifier adds `timestamp` and `sign` fields per Feishu's requirements.
-
-## Testing Conventions
-
-- Fixture assertions must use `pytest` comparison functions, not `assertEqual` (imported from `unittest`)
-- Use `httpx` transport fixtures for mocking HTTP calls in source tests
-- Integration tests (real network calls to external services) are marked with `@pytest.mark.integration`
+- Tests use plain `pytest` assertions — never `assertEqual` from `unittest`.
+- Source-adapter tests use `httpx` `MockTransport` fixtures (see `tests/test_arxiv_source.py`).
+- Live network tests are marked `@pytest.mark.integration` and excluded from default runs.
+- API responses always go through `create_envelope(...)` from `app/api/schemas.py` — return shape is `{ "data": ..., "meta": ... }`.
+- Editorial templates live in `app/editorial/templates/<platform>.md.j2` — add new platforms by adding a template + a publish adapter under `app/publish/`.
 
 ## Key Dependencies
 
-- `sqlalchemy` - Database ORM
-- `httpx` - HTTP client
-- `pydantic`, `pydantic-settings` - Data validation and settings management
-- `pyyaml` - Source configuration parsing
-- `pytest` - Testing framework
-
-## Architectural Decisions (from original spec)
-
-- Uses SQLite first with PostgreSQL migration path
-- Single-execution Python script orchestrated by cron (not a long-running service)
-- Storage-success is independent of notification-success
-- `dedup_key` is soft matching only — papers from different sources are NOT merged
-
+- Backend: `fastapi`, `uvicorn`, `sqlalchemy`, `httpx`, `pydantic`, `pydantic-settings`, `pyyaml`, `pypdf`, `jinja2`, `pytest`.
+- Frontend: Next.js 15 (App Router), TypeScript, ESLint with zero-warning policy.
+- Tooling: `uv` for dependency management, `conda` for the Python environment, `make` for orchestration.

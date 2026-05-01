@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api.schemas import NotificationFeedResponse, NotificationRetryRequest, NotificationRetryResponse, create_envelope
+from app.api.security import require_api_key
 from app.api.services.notifications import list_notification_feed, retry_notifications
 
 router = APIRouter(tags=["notifications"])
@@ -23,7 +24,11 @@ async def get_notifications(request: Request) -> dict:
 
 
 @router.post("/notifications/retry")
-async def retry_notification_route(request: Request, body: NotificationRetryRequest) -> dict:
+async def retry_notification_route(
+    request: Request,
+    body: NotificationRetryRequest,
+    _actor: str = Depends(require_api_key),
+) -> dict:
     if not body.notification_ids and not body.paper_ids:
         raise HTTPException(status_code=400, detail="notificationIds or paperIds is required")
     try:

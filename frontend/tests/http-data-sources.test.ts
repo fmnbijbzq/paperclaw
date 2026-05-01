@@ -317,7 +317,7 @@ test("HTTP pipeline data source creates, lists, gets, and cancels pipeline tasks
   });
 
   const [created, listed, fetched, cancelled] = await Promise.all([
-    dataSource.createPipelineTask({ taskType: "full_pipeline", requestedBy: "operator", notify: false, editorialLimit: 2 }),
+    dataSource.createPipelineTask({ taskType: "full_pipeline", notify: false, editorialLimit: 2 }),
     dataSource.listPipelineTasks(),
     dataSource.getPipelineTask(101),
     dataSource.cancelPipelineTask(101),
@@ -338,7 +338,7 @@ test("HTTP pipeline data source creates, lists, gets, and cancels pipeline tasks
   );
   assert.equal(
     requests[0]?.body,
-    JSON.stringify({ taskType: "full_pipeline", requestedBy: "operator", notify: false, editorialLimit: 2 }),
+    JSON.stringify({ taskType: "full_pipeline", notify: false, editorialLimit: 2 }),
   );
 });
 
@@ -568,12 +568,9 @@ test("HTTP drafts and exports data sources map detail payloads and workflow acti
     }),
     draftsDataSource.getDraftDetail("draft-21-a"),
     draftsDataSource.reviewDraft("draft-21-a", {
-      actor: "editor-1",
       note: "Ready for human review.",
     }),
-    draftsDataSource.exportDraft("draft-21-a", {
-      exportedBy: "ops-bot",
-    }),
+    draftsDataSource.exportDraft("draft-21-a", {}),
     exportsDataSource.listExportRecords(),
   ]);
 
@@ -593,10 +590,7 @@ test("HTTP drafts and exports data sources map detail payloads and workflow acti
     ],
   );
   assert.deepEqual(JSON.parse(requests[2]?.body ?? "{}"), {
-    actor: "editor-1",
     note: "Ready for human review.",
   });
-  assert.deepEqual(JSON.parse(requests[3]?.body ?? "{}"), {
-    exportedBy: "ops-bot",
-  });
+  assert.deepEqual(JSON.parse(requests[3]?.body ?? "{}"), {});
 });

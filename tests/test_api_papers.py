@@ -278,17 +278,17 @@ def test_editorial_draft_export_requires_approved_status_and_records_audit(tmp_p
 
     rejected_response = client.post(
         f"/drafts/{draft.draft_id}/export",
-        json={"exportedBy": "ops"},
+        json={},
     )
 
     assert rejected_response.status_code == 409
     assert "approved" in rejected_response.json()["detail"]
 
-    client.post(f"/drafts/{draft.draft_id}/review", json={"actor": "reviewer"})
-    client.post(f"/drafts/{draft.draft_id}/approve", json={"actor": "reviewer"})
+    client.post(f"/drafts/{draft.draft_id}/review", json={})
+    client.post(f"/drafts/{draft.draft_id}/approve", json={})
     exported_response = client.post(
         f"/drafts/{draft.draft_id}/export",
-        json={"exportedBy": "ops"},
+        json={},
     )
 
     assert exported_response.status_code == 200
@@ -296,13 +296,14 @@ def test_editorial_draft_export_requires_approved_status_and_records_audit(tmp_p
     assert export_payload["success"] is True
     assert export_payload["draftId"] == draft.draft_id
     assert export_payload["destinationPath"].endswith("bilibili-2404-01812.md")
+    assert export_payload["exportedBy"].startswith("api:")
 
     exports_response = client.get("/exports")
     assert exports_response.status_code == 200
     exports = exports_response.json()["data"]["items"]
     assert len(exports) == 2
     assert exports[-1]["success"] is True
-    assert exports[-1]["exportedBy"] == "ops"
+    assert exports[-1]["exportedBy"].startswith("api:")
 
 
 
@@ -312,7 +313,7 @@ def test_editorial_draft_export_returns_latest_audit_record_for_same_destination
 
     first = client.post(
         f"/drafts/{draft.draft_id}/export",
-        json={"exportedBy": "ops-1"},
+        json={},
     )
     assert first.status_code == 200
 
@@ -323,12 +324,12 @@ def test_editorial_draft_export_returns_latest_audit_record_for_same_destination
 
     second = client.post(
         f"/drafts/{draft.draft_id}/export",
-        json={"exportedBy": "ops-2"},
+        json={},
     )
 
     assert second.status_code == 200
     first_payload = first.json()["data"]
     second_payload = second.json()["data"]
     assert second_payload["exportId"] > first_payload["exportId"]
-    assert second_payload["exportedBy"] == "ops-2"
+    assert second_payload["exportedBy"].startswith("api:")
     assert second_payload["destinationPath"] == first_payload["destinationPath"]

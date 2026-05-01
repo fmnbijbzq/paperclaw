@@ -135,17 +135,15 @@ class EditorialDraftDetailResponse(EditorialDraftItem):
 
 
 class EditorialDraftActionRequest(ApiModel):
-    actor: str
     note: str | None = None
 
 
 class EditorialDraftAssignRequest(ApiModel):
     assignee: str
-    actor: str | None = None
 
 
 class EditorialDraftExportRequest(ApiModel):
-    exported_by: str = Field(alias="exportedBy")
+    pass
 
 
 class ExportRecordItem(ApiModel):
@@ -296,7 +294,6 @@ class EditorialRunsResponse(ApiModel):
 
 class PipelineTaskCreateRequest(ApiModel):
     task_type: str = Field(default="full_pipeline", alias="taskType")
-    requested_by: str | None = Field(default=None, alias="requestedBy")
     notify: bool = True
     editorial_limit: int = Field(default=3, ge=1, alias="editorialLimit")
 

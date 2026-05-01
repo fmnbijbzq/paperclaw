@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import timezone
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 
 from app.api.schemas import (
     CrawlRunItem,
@@ -16,6 +16,7 @@ from app.api.schemas import (
     SummarizationRunsResponse,
     create_envelope,
 )
+from app.api.security import require_api_key
 from app.api.services.pipeline_summary import build_pipeline_summary
 from app.models import PipelineTask
 
@@ -62,7 +63,11 @@ async def get_pipeline_summary(request: Request) -> dict:
 
 
 @router.post("/tasks")
-async def create_pipeline_task(request: Request, body: PipelineTaskCreateRequest) -> dict:
+async def create_pipeline_task(
+    request: Request,
+    body: PipelineTaskCreateRequest,
+    actor: str = Depends(require_api_key),
+) -> dict:
     if body.task_type != "full_pipeline":
         raise HTTPException(status_code=400, detail="unsupported pipeline task type")
     parameters = {
@@ -71,7 +76,7 @@ async def create_pipeline_task(request: Request, body: PipelineTaskCreateRequest
     }
     task = request.app.state.db.create_pipeline_task(
         task_type=body.task_type,
-        requested_by=body.requested_by,
+        requested_by=actor,
         parameters=parameters,
     )
     runner = getattr(request.app.state, "pipeline_task_runner", None)
@@ -96,7 +101,11 @@ async def get_pipeline_task(request: Request, task_id: int) -> dict:
 
 
 @router.post("/tasks/{task_id}/cancel")
-async def cancel_pipeline_task(request: Request, task_id: int) -> dict:
+async def cancel_pipeline_task(
+    request: Request,
+    task_id: int,
+    _actor: str = Depends(require_api_key),
+) -> dict:
     try:
         task = request.app.state.db.cancel_pipeline_task(task_id)
     except ValueError as exc:

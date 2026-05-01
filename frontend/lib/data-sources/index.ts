@@ -38,26 +38,32 @@ export function resolveDataSources(
 ): ResolvedDataSources {
   if (config.dataSource === "http") {
     const baseUrl = requireApiBaseUrl(config);
+    const apiKey = config.apiKey;
 
     return {
       papers: createHttpPapersDataSource({
         baseUrl,
+        apiKey,
         fetch: options.fetch,
       }),
       notifications: createHttpNotificationsDataSource({
         baseUrl,
+        apiKey,
         fetch: options.fetch,
       }),
       pipeline: createHttpPipelineDataSource({
         baseUrl,
+        apiKey,
         fetch: options.fetch,
       }),
       drafts: createHttpDraftsDataSource({
         baseUrl,
+        apiKey,
         fetch: options.fetch,
       }),
       exports: createHttpExportsDataSource({
         baseUrl,
+        apiKey,
         fetch: options.fetch,
       }),
     };

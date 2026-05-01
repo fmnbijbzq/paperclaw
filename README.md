@@ -90,6 +90,12 @@ cp .env.example .env   # if .env.example exists, otherwise create .env
 | `LOG_LEVEL`             | Logging level                                      | `INFO`           |
 | `TIMEZONE`              | IANA timezone                                      | `Asia/Shanghai`  |
 | `LOG_FILE`              | Path to persist logs                               | *(optional)*     |
+| `API_KEY`               | Bearer token for write endpoints. Empty → 503      | *(empty)*        |
+| `CORS_ALLOW_ORIGINS`    | Comma-separated allowlist for CORS                 | `http://localhost:3000` |
+
+> **Important:** `API_KEY` is fail-closed. Write endpoints (`POST/PATCH/DELETE`)
+> return **HTTP 503** when no key is configured. Read endpoints remain public.
+> Generate a strong random value (`openssl rand -hex 32`) before deploying.
 
 Edit `config/sources.yaml` to tune source settings:
 
@@ -168,13 +174,18 @@ Create `frontend/.env.local`:
 
 ```bash
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+NEXT_PUBLIC_API_KEY=<same value as backend API_KEY>
 
 # Equivalent server-side configuration:
 PAPERCLAW_DATA_SOURCE=http
 PAPERCLAW_API_BASE_URL=http://localhost:8000
+PAPERCLAW_API_KEY=<same value as backend API_KEY>
 ```
 
 Without an API base URL the frontend uses demo data (no backend required).
+When the backend has `API_KEY` set, the frontend must send the matching
+`NEXT_PUBLIC_API_KEY` or write actions (start pipeline, approve draft, retry
+notification, export) will return 401.
 
 ---
 

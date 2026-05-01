@@ -124,18 +124,16 @@ export interface DashboardSnapshot {
 }
 
 export interface DraftActionInput {
-  actor: string;
   note?: string | null;
 }
 
 export interface DraftAssignInput {
   assignee: string;
-  actor?: string | null;
 }
 
-export interface DraftExportInput {
-  exportedBy: string;
-}
+// Body intentionally empty: the backend records the actor from the
+// authenticated API key, not from a client-supplied field.
+export type DraftExportInput = Record<string, never>;
 
 export interface DraftListFilters {
   status?: DraftStatus | "all";
@@ -230,7 +228,6 @@ export interface PipelineRunsSnapshot {
 
 export interface PipelineTaskCreateInput {
   taskType: "full_pipeline";
-  requestedBy?: string | null;
   notify: boolean;
   editorialLimit: number;
 }

@@ -20,11 +20,17 @@ class AppSettings(BaseSettings):
     log_file: str | None = None
     timezone: str = "Asia/Shanghai"
     max_notify_items: int = 10
+    api_key: str | None = None
+    cors_allow_origins: str = "http://localhost:3000"
     model_config = SettingsConfigDict(
         env_file=str(DOTENV_PATH),
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @property
+    def cors_allow_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
 
     @classmethod
     def settings_customise_sources(

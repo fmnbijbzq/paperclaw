@@ -41,7 +41,7 @@ export const demoPipelineDataSource: PipelineDataSource = {
     return {
       ...demoPipelineTasks[0],
       taskId: Date.now(),
-      requestedBy: input.requestedBy ?? null,
+      requestedBy: "demo-operator",
       parameters: {
         notify: input.notify,
         editorialLimit: input.editorialLimit,

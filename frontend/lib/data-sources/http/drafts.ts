@@ -19,12 +19,16 @@ export function createHttpDraftsDataSource(options: HttpDataSourceOptions): Draf
   async function postAction<T>(path: string, body: unknown): Promise<T> {
     const requestUrl = client.buildUrl(path);
     const fetchImpl = options.fetch ?? fetch;
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      accept: "application/json",
+    };
+    if (client.apiKey) {
+      headers.Authorization = `Bearer ${client.apiKey}`;
+    }
     const response = await fetchImpl(requestUrl, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-        accept: "application/json",
-      },
+      headers,
       body: JSON.stringify(body),
     });
 

@@ -11,6 +11,7 @@ import type { PipelineTaskCreateInput, PipelineTaskItem, PipelineTaskStatus } fr
 
 interface PipelineTaskControlProps {
   apiBaseUrl: string | null;
+  apiKey: string | null;
   dataSource: ApiDataSource;
   initialTasks: PipelineTaskItem[];
 }
@@ -55,12 +56,20 @@ function buildTaskUrl(apiBaseUrl: string, path: string): string {
   return `${apiBaseUrl.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
 }
 
-async function requestTask<TData>(apiBaseUrl: string, path: string, init?: RequestInit): Promise<TData> {
-  const headers: HeadersInit = {
+async function requestTask<TData>(
+  apiBaseUrl: string,
+  apiKey: string | null,
+  path: string,
+  init?: RequestInit,
+): Promise<TData> {
+  const headers: Record<string, string> = {
     accept: "application/json",
   };
   if (init?.body) {
     headers["content-type"] = "application/json";
+  }
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
   }
   const response = await fetch(buildTaskUrl(apiBaseUrl, path), {
     ...init,
@@ -80,7 +89,7 @@ function createDemoTask(input: PipelineTaskCreateInput): PipelineTaskItem {
     currentStage: "queued",
     progressCurrent: 0,
     progressTotal: 3,
-    requestedBy: input.requestedBy ?? null,
+    requestedBy: "demo-operator",
     parameters: {
       notify: input.notify,
       editorialLimit: input.editorialLimit,
@@ -93,7 +102,7 @@ function createDemoTask(input: PipelineTaskCreateInput): PipelineTaskItem {
   };
 }
 
-export function PipelineTaskControl({ apiBaseUrl, dataSource, initialTasks }: PipelineTaskControlProps) {
+export function PipelineTaskControl({ apiBaseUrl, apiKey, dataSource, initialTasks }: PipelineTaskControlProps) {
   const [tasks, setTasks] = useState(initialTasks);
   const [notify, setNotify] = useState(true);
   const [editorialLimit, setEditorialLimit] = useState(3);
@@ -113,14 +122,14 @@ export function PipelineTaskControl({ apiBaseUrl, dataSource, initialTasks }: Pi
       if (dataSource !== "http" || !apiBaseUrl) {
         return;
       }
-      const latest = await requestTask<PipelineTaskItem>(apiBaseUrl, `pipeline/tasks/${activeTask.taskId}`);
+      const latest = await requestTask<PipelineTaskItem>(apiBaseUrl, apiKey, `pipeline/tasks/${activeTask.taskId}`);
       if (!latest) {
         return;
       }
       setTasks((current) => current.map((task) => (task.taskId === latest.taskId ? latest : task)));
     }, 4000);
     return () => window.clearInterval(timer);
-  }, [activeTask, apiBaseUrl, dataSource]);
+  }, [activeTask, apiBaseUrl, apiKey, dataSource]);
 
   function handleStart() {
     setMessage(null);
@@ -128,13 +137,12 @@ export function PipelineTaskControl({ apiBaseUrl, dataSource, initialTasks }: Pi
       try {
         const input: PipelineTaskCreateInput = {
           taskType: "full_pipeline",
-          requestedBy: "dashboard",
           notify,
           editorialLimit,
         };
         const task =
           dataSource === "http" && apiBaseUrl
-            ? await requestTask<PipelineTaskItem>(apiBaseUrl, "pipeline/tasks", {
+            ? await requestTask<PipelineTaskItem>(apiBaseUrl, apiKey, "pipeline/tasks", {
                 method: "POST",
                 body: JSON.stringify(input),
               })
@@ -153,7 +161,7 @@ export function PipelineTaskControl({ apiBaseUrl, dataSource, initialTasks }: Pi
       try {
         const task =
           dataSource === "http" && apiBaseUrl
-            ? await requestTask<PipelineTaskItem>(apiBaseUrl, `pipeline/tasks/${taskId}/cancel`, {
+            ? await requestTask<PipelineTaskItem>(apiBaseUrl, apiKey, `pipeline/tasks/${taskId}/cancel`, {
                 method: "POST",
               })
             : ({

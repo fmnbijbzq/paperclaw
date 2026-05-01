@@ -10,6 +10,7 @@ export type FetchLike = (input: string | URL, init?: RequestInit) => Promise<Fet
 
 export interface HttpDataSourceOptions {
   baseUrl: string;
+  apiKey?: string | null;
   fetch?: FetchLike;
 }
 
@@ -27,6 +28,13 @@ function resolveFetch(fetchImplementation?: FetchLike): FetchLike {
   }
 
   return fetch as FetchLike;
+}
+
+function buildAuthHeaders(apiKey: string | null | undefined, extra: Record<string, string> = {}): Record<string, string> {
+  if (!apiKey) {
+    return extra;
+  }
+  return { Authorization: `Bearer ${apiKey}`, ...extra };
 }
 
 export function buildRequestUrl(baseUrl: string, path: string, query: HttpQueryParams = {}): string {
@@ -48,18 +56,20 @@ export function buildRequestUrl(baseUrl: string, path: string, query: HttpQueryP
 
 export function createHttpClient(options: HttpDataSourceOptions) {
   const fetchImplementation = resolveFetch(options.fetch);
+  const apiKey = options.apiKey ?? null;
 
   return {
     buildUrl(path: string, query?: HttpQueryParams): string {
       return buildRequestUrl(options.baseUrl, path, query);
     },
+    get apiKey(): string | null {
+      return apiKey;
+    },
     async get<TData>(path: string, query?: HttpQueryParams): Promise<TData> {
       const requestUrl = buildRequestUrl(options.baseUrl, path, query);
       const response = await fetchImplementation(requestUrl, {
         method: "GET",
-        headers: {
-          accept: "application/json",
-        },
+        headers: buildAuthHeaders(apiKey, { accept: "application/json" }),
       });
 
       if (!response.ok) {
@@ -72,10 +82,10 @@ export function createHttpClient(options: HttpDataSourceOptions) {
       const requestUrl = buildRequestUrl(options.baseUrl, path);
       const response = await fetchImplementation(requestUrl, {
         method: "POST",
-        headers: {
+        headers: buildAuthHeaders(apiKey, {
           accept: "application/json",
           "content-type": "application/json",
-        },
+        }),
         body: body === undefined ? undefined : JSON.stringify(body),
       });
 

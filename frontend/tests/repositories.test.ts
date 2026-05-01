@@ -431,7 +431,7 @@ test("pipeline repository exposes task lifecycle operations", async () => {
     async createPipelineTask(input) {
       return {
         ...task,
-        requestedBy: input.requestedBy ?? null,
+        requestedBy: "operator",
         parameters: { notify: input.notify, editorialLimit: input.editorialLimit },
       };
     },
@@ -453,7 +453,6 @@ test("pipeline repository exposes task lifecycle operations", async () => {
 
   const created = await repository.createPipelineTask({
     taskType: "full_pipeline",
-    requestedBy: "operator",
     notify: false,
     editorialLimit: 2,
   });
@@ -590,7 +589,6 @@ test("drafts repository sorts, filters, and exposes workflow mutations", async (
   });
   const approvedDetail = await repository.getDraftDetail("draft-1");
   const approvedAgain = await repository.approveDraft("draft-1", {
-    actor: "editor-1",
     note: "Ship it.",
   });
 

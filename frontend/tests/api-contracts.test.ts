@@ -102,7 +102,6 @@ test("paper detail, pipeline, and notification contracts cover the current front
 test("pipeline task contracts cover asynchronous workflow control", () => {
   const request: PipelineTaskCreateRequest = {
     taskType: "full_pipeline",
-    requestedBy: "operator",
     notify: true,
     editorialLimit: 3,
   };
