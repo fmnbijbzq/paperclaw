@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from app.schemas import PaperRecord
 from app.storage import Database
+from app.summarization.schemas import PaperInsightRecord
 from app.tasks.pipeline_tasks import PipelineTaskRunner
 
 
@@ -359,3 +361,77 @@ def test_run_task_once_fails_with_timeout_when_elapsed_exceeds_limit(tmp_path):
     assert stored.current_stage == "failed"
     assert stored.error_message and "timeout" in stored.error_message.lower()
     assert stored.finished_at is not None
+
+
+def _seed_paper_with_insight(db: Database, *, source_paper_id: str, title: str):
+    paper = db.upsert_paper(
+        PaperRecord(
+            source="arxiv",
+            source_paper_id=source_paper_id,
+            title=title,
+            abstract="abs",
+            full_text="text",
+            authors=["Alice"],
+            paper_url=f"https://arxiv.org/abs/{source_paper_id}",
+            dedup_key=f"{title.lower()}|alice|2026",
+            raw_payload={"id": source_paper_id},
+        )
+    )
+    db.upsert_paper_insight(
+        paper_id=paper.paper_id,
+        insight=PaperInsightRecord(
+            summary_short="s",
+            summary_long="l",
+            novelty_points=["n"],
+            limitations=[],
+            applications=[],
+            confidence_score=0.5,
+        ),
+    )
+    return paper
+
+
+def test_run_editorial_stage_skips_papers_that_already_have_a_draft(tmp_path, monkeypatch):
+    """Re-triggering the dashboard pipeline must not regenerate drafts for
+    papers that already have one — that would clobber reviewer/approver
+    state via upsert_editorial_draft."""
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    drafted = _seed_paper_with_insight(db, source_paper_id="3000.0001", title="Drafted Paper")
+    fresh = _seed_paper_with_insight(db, source_paper_id="3000.0002", title="Fresh Paper")
+
+    db.upsert_editorial_draft(
+        paper_id=drafted.paper_id,
+        platform="bilibili",
+        title="Existing",
+        hook="hook",
+        markdown_content="# existing\n",
+        output_path=str(tmp_path / "outputs" / "bilibili-existing.md"),
+    )
+
+    captured: dict = {}
+
+    def fake_generate_editorial_files(*, papers_with_insights, output_dir, db):
+        captured["paper_ids"] = [p.paper_id for p, _ in papers_with_insights]
+        return FakeEditorialResult()
+
+    # Patch the symbol the runner imported — `from app.editorial.pipeline
+    # import generate_editorial_files` binds it onto pipeline_tasks.
+    import app.tasks.pipeline_tasks as pipeline_tasks_module
+
+    monkeypatch.setattr(
+        pipeline_tasks_module,
+        "generate_editorial_files",
+        fake_generate_editorial_files,
+    )
+
+    runner = _build_runner(db)
+    result = runner._run_editorial_stage(
+        db=db,
+        settings=runner._settings_factory(),
+        editorial_limit=10,
+    )
+
+    assert captured["paper_ids"] == [fresh.paper_id]
+    assert getattr(result, "generated", 0) == FakeEditorialResult.generated

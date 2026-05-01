@@ -318,6 +318,44 @@ def test_list_papers_with_insights_skips_papers_without_insights(tmp_path):
     assert all(item.paper_id != paper.paper_id for item, _ in rows)
 
 
+def test_list_papers_with_insights_where_no_draft_excludes_already_drafted_papers(tmp_path):
+    """The dashboard editorial stage uses where_no_draft=True so re-triggering
+    does not regenerate (and clobber the review state of) existing drafts."""
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    drafted = db.upsert_paper(_build_paper("2000.0001", "Already Drafted"))
+    fresh = db.upsert_paper(_build_paper("2000.0002", "Awaiting Draft"))
+    for paper in (drafted, fresh):
+        db.upsert_paper_insight(
+            paper_id=paper.paper_id,
+            insight=PaperInsightRecord(
+                summary_short="s",
+                summary_long="l",
+                novelty_points=["n"],
+                limitations=[],
+                applications=[],
+                confidence_score=0.5,
+            ),
+        )
+    db.upsert_editorial_draft(
+        paper_id=drafted.paper_id,
+        platform="bilibili",
+        title="Existing",
+        hook="hook",
+        markdown_content="# existing\n",
+        output_path=str(tmp_path / "outputs" / "bilibili-existing.md"),
+    )
+
+    # Default (False) keeps current behaviour — both papers come back.
+    all_rows = db.list_papers_with_insights(limit=10)
+    assert {p.title for p, _ in all_rows} == {"Already Drafted", "Awaiting Draft"}
+
+    # where_no_draft=True excludes any paper that already has any draft row.
+    fresh_rows = db.list_papers_with_insights(limit=10, where_no_draft=True)
+    assert [p.title for p, _ in fresh_rows] == ["Awaiting Draft"]
+
+
 def test_upsert_editorial_draft_reuses_single_row_and_resets_status_on_regeneration(tmp_path):
     db = Database(f"sqlite:///{tmp_path/'papers.db'}")
     db.create_schema()

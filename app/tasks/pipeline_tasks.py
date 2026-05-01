@@ -285,7 +285,12 @@ class PipelineTaskRunner:
 
     def _run_editorial_stage(self, *, db: Database, settings: Any, editorial_limit: int) -> Any:
         del settings
-        rows = db.list_papers_with_insights(limit=editorial_limit)
+        # ``where_no_draft=True`` makes re-triggering the dashboard pipeline
+        # idempotent: papers that already have any EditorialDraft row are
+        # skipped, so we never re-call upsert_editorial_draft on them (which
+        # would reset status to ``generated`` and wipe reviewer/approver
+        # fields). Newly crawled papers always get a draft on the next run.
+        rows = db.list_papers_with_insights(limit=editorial_limit, where_no_draft=True)
         if not rows:
             return {"generated": 0, "outputs": [], "skipped": "no papers with insights"}
         return generate_editorial_files(

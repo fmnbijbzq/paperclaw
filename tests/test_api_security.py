@@ -115,6 +115,36 @@ def test_actor_field_is_not_accepted_from_client_in_draft_actions(tmp_path):
     assert parsed.note == "x"
 
 
+def test_create_app_rejects_cors_wildcard_origin(tmp_path):
+    """Browsers refuse credentialed requests when ``Access-Control-Allow-Origin``
+    is ``*``. Since we ship ``allow_credentials=True``, accepting ``*`` here
+    would silently break every cookie/Authorization-bearing request. Fail
+    fast at startup instead so the operator sees the misconfiguration."""
+    with pytest.raises(ValueError) as excinfo:
+        create_app(
+            database_url=f"sqlite:///{tmp_path/'papers.db'}",
+            editorial_root=tmp_path / "outputs" / "editorial",
+            start_task_runner=False,
+            api_key=TEST_API_KEY,
+            cors_allow_origins=["*"],
+        )
+    message = str(excinfo.value).lower()
+    assert "*" in message or "wildcard" in message
+    assert "credential" in message
+
+
+def test_create_app_accepts_explicit_cors_origins(tmp_path):
+    """Sanity: a concrete origin list still works."""
+    app = create_app(
+        database_url=f"sqlite:///{tmp_path/'papers.db'}",
+        editorial_root=tmp_path / "outputs" / "editorial",
+        start_task_runner=False,
+        api_key=TEST_API_KEY,
+        cors_allow_origins=["http://localhost:3000", "https://app.example.com"],
+    )
+    assert app is not None
+
+
 @pytest.fixture(autouse=True)
 def _disable_dotenv(monkeypatch):
     """Some auth tests need to override env vars; ensure the project ``.env``

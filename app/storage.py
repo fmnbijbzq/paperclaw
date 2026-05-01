@@ -121,13 +121,26 @@ class Database:
     def list_unnotified_papers_with_limit(self, *, destination: str, limit: int) -> list[Paper]:
         return self.list_unnotified_papers(destination=destination, limit=limit)
 
-    def list_papers_with_insights(self, *, limit: int) -> list[tuple[Paper, PaperInsight]]:
+    def list_papers_with_insights(
+        self,
+        *,
+        limit: int,
+        where_no_draft: bool = False,
+    ) -> list[tuple[Paper, PaperInsight]]:
         stmt = (
             select(Paper, PaperInsight)
             .join(PaperInsight, Paper.paper_id == PaperInsight.paper_id)
             .order_by(Paper.paper_id.desc())
             .limit(limit)
         )
+        if where_no_draft:
+            # Exclude papers that already have any EditorialDraft row. This
+            # makes the dashboard editorial stage idempotent and avoids
+            # re-running upsert_editorial_draft, which would otherwise reset
+            # status and wipe reviewer/approver fields on already-reviewed
+            # drafts.
+            drafted_paper_ids = select(EditorialDraft.paper_id)
+            stmt = stmt.where(~Paper.paper_id.in_(drafted_paper_ids))
         with self._session() as session:
             rows = session.execute(stmt).all()
             return [(paper, insight) for paper, insight in rows]

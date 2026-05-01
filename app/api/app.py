@@ -49,6 +49,20 @@ def create_app(
     else:
         resolved_cors_origins = ["http://localhost:3000"]
 
+    # Browsers reject ``Access-Control-Allow-Origin: *`` with credentialed
+    # requests (cookies / Authorization headers). Since we set
+    # ``allow_credentials=True`` below, accepting ``*`` here would ship a
+    # configuration where every authenticated cross-origin request silently
+    # fails in the browser. Fail fast at startup so the misconfiguration is
+    # visible — operators should list explicit origins instead.
+    if "*" in resolved_cors_origins:
+        raise ValueError(
+            "CORS configuration error: wildcard '*' is incompatible with "
+            "allow_credentials=True (browsers reject credentialed requests "
+            "to a wildcard origin). List explicit origins in "
+            "CORS_ALLOW_ORIGINS instead."
+        )
+
     db = Database(resolved_database_url)
     db.create_schema()
     task_runner = PipelineTaskRunner(db=db)
