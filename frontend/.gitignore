@@ -4,3 +4,4 @@ out
 dist
 coverage
 *.log
+tsconfig.tsbuildinfo
