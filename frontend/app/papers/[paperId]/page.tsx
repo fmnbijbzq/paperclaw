@@ -7,6 +7,7 @@ import { NotificationTable } from "@/components/notification-table";
 import { PaperDetailHero } from "@/components/paper-detail-hero";
 import { SectionCard } from "@/components/section-card";
 import { getPaperDetail } from "@/lib/queries";
+import { resolveRuntimeConfig } from "@/lib/runtime-config";
 
 interface PaperDetailPageProps {
   params: Promise<{
@@ -59,9 +60,16 @@ export default async function PaperDetailPage({ params }: PaperDetailPageProps) 
     source: record.paper.source,
   }));
 
+  const runtimeConfig = resolveRuntimeConfig();
+
   return (
     <div className="space-y-6 lg:space-y-8">
-      <PaperDetailHero record={record} />
+      <PaperDetailHero
+        record={record}
+        apiBaseUrl={runtimeConfig.apiBaseUrl}
+        apiKey={runtimeConfig.apiKey}
+        dataSource={runtimeConfig.dataSource}
+      />
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(22rem,0.8fr)]">
         <InsightPanel
