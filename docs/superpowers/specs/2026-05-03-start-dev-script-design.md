@@ -72,15 +72,17 @@ The script also auto-loads the project's `.env` (if present) before launching uv
 
 4. **Start backend (background):**
    ```bash
-   conda run --no-capture-output -n paperclaw \
-     uvicorn app.api.app:create_app \
+   setsid conda run --no-capture-output -n "$CONDA_ENV" \
+     uv run uvicorn app.api.app:create_app \
        --factory --reload \
        --host "$API_HOST" --port "$API_PORT" \
      > >(prefix '[api]' cyan | tee logs/dev-api.log) 2>&1 &
    API_PID=$!
    ```
+   - **`uv run` inside `conda run`** — the conda env provides Python, but `uvicorn` is installed by `uv sync` into `.venv/bin/`. Without `uv run`, the conda env's PATH doesn't see uvicorn. This matches the existing Makefile pattern (`make run` does `conda run -n paperclaw uv run python …`).
+   - **`setsid`** — uvicorn `--reload` spawns a reloader process plus worker subprocesses, and `npm run dev` spawns a child `next dev` node process. Killing only the top PID leaves orphans bound to ports 8000/3000. `setsid` makes each background command the leader of a new process group, so `kill -- -PGID` (in cleanup) tears down the whole tree at once.
    - `--no-capture-output` is required so logs stream live instead of buffering until exit.
-   - **Process substitution (`> >(…)`) instead of a `cmd | prefix | tee &` pipeline** so that `$!` is the `conda run` (uvicorn) PID, not `tee`'s. With a plain pipeline, killing `$!` would only stop `tee` and leave uvicorn hanging on a SIGPIPE.
+   - **Process substitution (`> >(…)`) instead of a `cmd | prefix | tee &` pipeline** so that `$!` is the `setsid` (uvicorn) PID, not `tee`'s. With a plain pipeline, killing `$!` would only stop `tee` and leave uvicorn hanging on a SIGPIPE.
 
    `prefix` is a small shell function: it reads stdin line-by-line and prepends a colored tag if stdout is a tty, plain text otherwise. Color via ANSI escapes (`\033[36m` cyan, `\033[32m` green, `\033[0m` reset); tty detection via `[ -t 1 ]`.
 
@@ -101,16 +103,17 @@ The script also auto-loads the project's `.env` (if present) before launching uv
 
 6. **Start frontend (background):**
    ```bash
-   ( cd frontend && \
-     NEXT_PUBLIC_API_BASE_URL="http://localhost:$API_PORT" \
-     PAPERCLAW_API_BASE_URL="http://localhost:$API_PORT" \
+   setsid bash -c "
+     cd frontend
+     NEXT_PUBLIC_API_BASE_URL='http://localhost:$API_PORT' \
+     PAPERCLAW_API_BASE_URL='http://localhost:$API_PORT' \
      PAPERCLAW_DATA_SOURCE=http \
-     PORT="$WEB_PORT" \
-     npm run dev \
-   ) > >(prefix '[web]' green | tee logs/dev-web.log) 2>&1 &
+     PORT='$WEB_PORT' \
+     exec npm run dev
+   " > >(prefix '[web]' green | tee logs/dev-web.log) 2>&1 &
    WEB_PID=$!
    ```
-   Same process-substitution pattern as the backend so `$!` is the subshell wrapping `npm run dev`, killable with one TERM.
+   Same `setsid` + process-substitution pattern as the backend. `exec npm run dev` lets the bash wrapper hand control directly to npm, so killing the process group doesn't leave a stray bash in the tree.
 
 7. **Print access URLs (once both PIDs exist):**
    ```
@@ -121,18 +124,28 @@ The script also auto-loads the project's `.env` (if present) before launching uv
    Press Ctrl+C to stop both.
    ```
 
-8. **Wait + trap:**
+8. **Cleanup + wait:**
    ```bash
+   kill_tree() {
+       local pid="$1"
+       [ -z "$pid" ] && return 0
+       kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
+   }
+
    cleanup() {
+       [ "$CLEANUP_DONE" -eq 1 ] && return    # idempotent — INT+EXIT both fire
+       CLEANUP_DONE=1
        trap - INT TERM EXIT
-       kill -TERM "$API_PID" "$WEB_PID" 2>/dev/null || true
-       wait "$API_PID" "$WEB_PID" 2>/dev/null || true
+       …
+       kill_tree "$WEB_PID"
+       kill_tree "$API_PID"
+       wait "$WEB_PID" "$API_PID" 2>/dev/null || true
    }
    trap cleanup INT TERM EXIT
    wait
    ```
-
-   Killing by PID is sufficient because uvicorn (run via `conda run --no-capture-output`) and `npm run dev` both forward signals to their children.
+   - `kill -- -PID` targets the process group whose leader is PID (set up by `setsid` above). Falls back to plain `kill PID` if the group form fails (e.g., `setsid` failed).
+   - The `CLEANUP_DONE` guard is needed because Ctrl+C fires INT *and* EXIT in sequence — without the guard, "shutting down…" prints twice and we double-kill.
 
 ### Makefile addition
 

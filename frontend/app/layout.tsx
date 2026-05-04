@@ -28,7 +28,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${bodyFont.variable} ${displayFont.variable}`}>
+    <html
+      lang="en"
+      className={`${bodyFont.variable} ${displayFont.variable}`}
+      suppressHydrationWarning
+    >
       <body>
         <a href="#main-content" className="skip-link">
           Skip to main content

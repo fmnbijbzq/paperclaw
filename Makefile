@@ -1,4 +1,4 @@
-.PHONY: env env-update sync test test-all run notify smoke
+.PHONY: env env-update sync test test-all run notify dev smoke
 
 CONDA ?= /root/miniconda3/bin/conda
 ENV_NAME ?= paperclaw
@@ -26,6 +26,9 @@ run:
 
 notify:
 	$(CONDA) run -n $(ENV_NAME) uv run python run_notify_once.py
+
+dev:
+	./scripts/start-dev.sh
 
 smoke:
 	$(CONDA) run -n $(ENV_NAME) uv run python scripts/send_test_feishu_message.py
