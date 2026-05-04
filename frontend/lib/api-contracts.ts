@@ -104,6 +104,11 @@ export interface PaperDetailResponse {
   record: PaperRecord | null;
 }
 
+export interface PaperDeleteResponse {
+  deletedPaperId: number;
+  cascadeCounts: Record<string, number>;
+}
+
 export interface PipelineSummaryRequest {
   source?: PaperSource;
 }

@@ -10,6 +10,7 @@ import {
   type ExportActionResponse,
   type ExportRecordsResponse,
   type NotificationFeedResponse,
+  type PaperDeleteResponse,
   type PaperDetailResponse,
   type PapersListResponse,
   type PipelineTaskCreateRequest,
@@ -192,4 +193,26 @@ test("draft and export contracts cover operational workflow pages", () => {
   assert.match(draftDetailResponse.markdownContent, /^#/);
   assert.equal(exportActionResponse.success, true);
   assert.equal(exportRecordsResponse.total, 1);
+});
+
+test("paper delete response wraps deletedPaperId + cascadeCounts in the standard envelope", () => {
+  const body: PaperDeleteResponse = {
+    deletedPaperId: 42,
+    cascadeCounts: {
+      versions: 1,
+      insights: 1,
+      drafts: 2,
+      notifications: 3,
+      exportRecords: 0,
+      destinationRecords: 0,
+      fetchFailures: 1,
+    },
+  };
+  const envelope = createApiEnvelope<PaperDeleteResponse>(body, { dataSource: "http" });
+
+  assert.equal(envelope.meta.schemaVersion, API_SCHEMA_VERSION);
+  assert.equal(envelope.meta.dataSource, "http");
+  assert.equal(envelope.data.deletedPaperId, 42);
+  assert.equal(envelope.data.cascadeCounts.drafts, 2);
+  assert.equal(envelope.data.cascadeCounts.fetchFailures, 1);
 });

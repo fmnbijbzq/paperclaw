@@ -110,6 +110,11 @@ export interface PaperRecord {
   editorialDrafts: EditorialDraftItem[];
 }
 
+export interface PaperDeleteResult {
+  deletedPaperId: number;
+  cascadeCounts: Record<string, number>;
+}
+
 export interface NotificationFeedRow {
   notification: NotificationItem;
   paperTitle: string;
