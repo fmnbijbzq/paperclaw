@@ -1,14 +1,19 @@
 import { ArrowUpRight, BellRing, BrainCircuit, FileText, FileUp, Microscope } from "lucide-react";
 
+import type { ApiDataSource } from "@/lib/api-contracts";
 import { formatFullDate, formatSource } from "@/lib/format";
 import type { PaperRecord } from "@/lib/types";
+import { PaperDeleteAction } from "@/components/paper-delete-action";
 import { StatusBadge } from "@/components/status-badge";
 
 interface PaperDetailHeroProps {
   record: PaperRecord;
+  apiBaseUrl: string | null;
+  apiKey: string | null;
+  dataSource: ApiDataSource;
 }
 
-export function PaperDetailHero({ record }: PaperDetailHeroProps) {
+export function PaperDetailHero({ record, apiBaseUrl, apiKey, dataSource }: PaperDetailHeroProps) {
   return (
     <section className="panel-card rounded-[2rem] p-6 sm:p-7">
       <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between">
@@ -81,6 +86,15 @@ export function PaperDetailHero({ record }: PaperDetailHeroProps) {
                 : "此论文尚未生成草稿产物。"}
             </p>
           </div>
+          <PaperDeleteAction
+            paperId={record.paper.paperId}
+            paperTitle={record.paper.title}
+            draftCount={record.editorialDrafts.length}
+            hasInsight={record.insight !== null}
+            apiBaseUrl={apiBaseUrl}
+            apiKey={apiKey}
+            dataSource={dataSource}
+          />
         </div>
       </div>
     </section>
