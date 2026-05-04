@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
-from app.api.schemas import EditorialDraftsResponse, PaperDetailResponse, PaperInsightsResponse, PapersListResponse, create_envelope
+from app.api.schemas import EditorialDraftsResponse, PaperDeleteResponse, PaperDetailResponse, PaperInsightsResponse, PapersListResponse, create_envelope
+from app.api.security import require_api_key
 from app.api.services.editorial_workflow import list_drafts
 from app.api.services.read_models import get_paper_detail, list_paper_insights, list_papers
 
@@ -58,3 +59,22 @@ async def get_paper(request: Request, paper_id: int) -> dict:
     if payload is None:
         raise HTTPException(status_code=404, detail="paper not found")
     return create_envelope(PaperDetailResponse(**payload.model_dump(by_alias=True))).model_dump(by_alias=True)
+
+
+@router.delete("/{paper_id}")
+async def delete_paper(
+    request: Request,
+    paper_id: int,
+    actor: str = Depends(require_api_key),
+) -> dict:
+    del actor  # validated by require_api_key; not logged at this layer.
+    db = request.app.state.db
+    result = db.delete_paper(paper_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="paper not found")
+    return create_envelope(
+        PaperDeleteResponse(
+            deletedPaperId=result.paper_id,
+            cascadeCounts=result.cascade_counts,
+        )
+    ).model_dump(by_alias=True)

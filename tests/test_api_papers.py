@@ -383,3 +383,129 @@ def test_editorial_draft_export_returns_latest_audit_record_for_same_destination
     assert second_payload["exportId"] > first_payload["exportId"]
     assert second_payload["exportedBy"].startswith("api:")
     assert second_payload["destinationPath"] == first_payload["destinationPath"]
+
+
+def test_delete_paper_with_children_cascades_and_returns_counts(tmp_path):
+    """Happy path: paper with insight + draft + notification + fetch_failure
+    is wiped and the response envelope reports cascade counts."""
+    from tests.api_client import TEST_API_KEY
+
+    database_url = f"sqlite:///{tmp_path/'papers.db'}"
+    editorial_dir = tmp_path / "outputs" / "editorial"
+    app = create_app(
+        database_url=database_url,
+        editorial_root=editorial_dir,
+        start_task_runner=False,
+        api_key=TEST_API_KEY,
+    )
+    client = ASGITestClient(app)  # default api_key=TEST_API_KEY
+
+    db = Database(database_url)
+    db.create_schema()
+    paper = db.upsert_paper(_build_paper())
+    db.upsert_paper_insight(
+        paper_id=paper.paper_id,
+        insight=PaperInsightRecord(
+            summary_short="s",
+            summary_long="l",
+            novelty_points=["n"],
+            limitations=["lim"],
+            applications=["app"],
+            confidence_score=0.5,
+        ),
+    )
+    db.upsert_editorial_draft(
+        paper_id=paper.paper_id,
+        platform="bilibili",
+        title="t",
+        hook="h",
+        markdown_content="# t\n",
+        output_path=str(editorial_dir / "fixture.md"),
+    )
+    db.record_notification_attempt(destination="feishu", paper=paper, success=False, error_message="boom")
+    db.record_paper_failure(
+        source="arxiv",
+        record=_build_paper(),
+        error_phase="upsert",
+        error=RuntimeError("simulated"),
+    )
+
+    response = client.delete(f"/papers/{paper.paper_id}")
+
+    assert response.status_code == 200, response.text
+    payload = response.json()
+    assert payload["meta"]["dataSource"] == "http"
+    assert payload["data"]["deletedPaperId"] == paper.paper_id
+    counts = payload["data"]["cascadeCounts"]
+    assert counts["insights"] == 1
+    assert counts["drafts"] == 1
+    assert counts["notifications"] == 1
+    assert counts["fetchFailures"] == 1
+    # versions defaulted to 1 by upsert_paper (it inserts one version on create)
+    assert counts["versions"] == 1
+
+    # The paper is actually gone
+    follow_up = client.get(f"/papers/{paper.paper_id}")
+    assert follow_up.status_code == 404
+
+
+def test_delete_paper_returns_404_for_missing_id(tmp_path):
+    from tests.api_client import TEST_API_KEY
+
+    app = create_app(
+        database_url=f"sqlite:///{tmp_path/'papers.db'}",
+        editorial_root=tmp_path / "outputs" / "editorial",
+        start_task_runner=False,
+        api_key=TEST_API_KEY,
+    )
+    client = ASGITestClient(app)
+
+    response = client.delete("/papers/999999")
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+def test_delete_paper_returns_401_without_token(tmp_path):
+    from tests.api_client import TEST_API_KEY
+
+    database_url = f"sqlite:///{tmp_path/'papers.db'}"
+    app = create_app(
+        database_url=database_url,
+        editorial_root=tmp_path / "outputs" / "editorial",
+        start_task_runner=False,
+        api_key=TEST_API_KEY,
+    )
+    client = ASGITestClient(app, api_key=None)  # no Bearer header
+
+    db = Database(database_url)
+    db.create_schema()
+    paper = db.upsert_paper(_build_paper())
+
+    response = client.delete(f"/papers/{paper.paper_id}")
+
+    assert response.status_code == 401
+    # Paper still exists
+    db_check = Database(database_url)
+    assert db_check.count_papers() == 1
+
+
+def test_delete_paper_returns_503_when_api_key_not_configured(tmp_path):
+    """Fail-closed: a server with no API_KEY rejects deletes with 503."""
+    database_url = f"sqlite:///{tmp_path/'papers.db'}"
+    app = create_app(
+        database_url=database_url,
+        editorial_root=tmp_path / "outputs" / "editorial",
+        start_task_runner=False,
+        api_key=None,
+    )
+    client = ASGITestClient(app, api_key=None)
+
+    db = Database(database_url)
+    db.create_schema()
+    paper = db.upsert_paper(_build_paper())
+
+    response = client.delete(f"/papers/{paper.paper_id}")
+
+    assert response.status_code == 503
+    assert "not configured" in response.json()["detail"].lower()
