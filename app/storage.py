@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import create_engine, func, inspect, select, text, update
+from sqlalchemy import create_engine, delete, func, inspect, select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -20,6 +20,12 @@ from app.utils.time import utc_now
 class UpsertPaperResult:
     paper: Paper
     created: bool
+
+
+@dataclass(frozen=True)
+class PaperDeleteResult:
+    paper_id: int
+    cascade_counts: dict[str, int]
 
 
 class Database:
@@ -179,6 +185,99 @@ class Database:
 
             session.commit()
             return UpsertPaperResult(paper=paper, created=created)
+
+    def delete_paper(self, paper_id: int) -> PaperDeleteResult | None:
+        """Delete a paper and every row that depends on it.
+
+        Cascade map (all happens in one transaction):
+
+          paper_versions         ← ORM relationship, cascade="all, delete-orphan"
+          paper_insights         ← ORM relationship
+          editorial_drafts       ← ORM relationship
+            export_records       ← ORM relationship on EditorialDraft
+            destination_records  ← ORM relationship on EditorialDraft
+          notifications          ← ORM relationship
+          paper_fetch_failures   ← NO FK / NO relationship; wiped explicitly
+
+        Returns None if the paper doesn't exist (route uses this for 404).
+        """
+        with self._session() as session:
+            paper = session.get(Paper, paper_id)
+            if paper is None:
+                return None
+
+            # Pre-count children before delete fires (counts go in the
+            # response and are used by tests to verify what was wiped).
+            versions = session.scalar(
+                select(func.count())
+                .select_from(PaperVersion)
+                .where(PaperVersion.paper_id == paper_id)
+            ) or 0
+            insights = session.scalar(
+                select(func.count())
+                .select_from(PaperInsight)
+                .where(PaperInsight.paper_id == paper_id)
+            ) or 0
+            drafts = session.scalar(
+                select(func.count())
+                .select_from(EditorialDraft)
+                .where(EditorialDraft.paper_id == paper_id)
+            ) or 0
+            notifications = session.scalar(
+                select(func.count())
+                .select_from(Notification)
+                .where(Notification.paper_id == paper_id)
+            ) or 0
+            # export_records / destination_records FK to drafts, not papers,
+            # so we count them via a join through editorial_drafts.
+            export_records = session.scalar(
+                select(func.count())
+                .select_from(ExportRecord)
+                .join(EditorialDraft, ExportRecord.draft_id == EditorialDraft.draft_id)
+                .where(EditorialDraft.paper_id == paper_id)
+            ) or 0
+            destination_records = session.scalar(
+                select(func.count())
+                .select_from(DestinationRecord)
+                .join(EditorialDraft, DestinationRecord.draft_id == EditorialDraft.draft_id)
+                .where(EditorialDraft.paper_id == paper_id)
+            ) or 0
+            fetch_failures = session.scalar(
+                select(func.count())
+                .select_from(PaperFetchFailure)
+                .where(
+                    PaperFetchFailure.source == paper.source,
+                    PaperFetchFailure.source_paper_id == paper.source_paper_id,
+                )
+            ) or 0
+
+            # Capture (source, source_paper_id) before delete clears the
+            # in-session paper instance.
+            source = paper.source
+            source_paper_id = paper.source_paper_id
+
+            session.delete(paper)
+            # Explicit cleanup for the un-related table.
+            session.execute(
+                delete(PaperFetchFailure).where(
+                    PaperFetchFailure.source == source,
+                    PaperFetchFailure.source_paper_id == source_paper_id,
+                )
+            )
+            session.commit()
+
+            return PaperDeleteResult(
+                paper_id=paper_id,
+                cascade_counts={
+                    "versions": versions,
+                    "insights": insights,
+                    "drafts": drafts,
+                    "notifications": notifications,
+                    "exportRecords": export_records,
+                    "destinationRecords": destination_records,
+                    "fetchFailures": fetch_failures,
+                },
+            )
 
     def upsert_paper_insight(self, *, paper_id: int, insight: PaperInsightRecord) -> PaperInsight:
         with self._session() as session:

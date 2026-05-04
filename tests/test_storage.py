@@ -576,3 +576,96 @@ def test_mark_failure_resolved_sets_resolved_at(tmp_path):
     resolved = db.mark_failure_resolved(failure.failure_id)
     assert resolved.resolved_at is not None
     assert db.list_pending_failures(source="arxiv", limit=10) == []
+
+
+def test_delete_paper_returns_none_for_missing_id(tmp_path):
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    assert db.delete_paper(999) is None
+
+
+def test_delete_paper_wipes_paper_and_every_related_row(tmp_path):
+    """Cascade contract: deleting a paper removes its versions, insights,
+    drafts (and their export/destination records), notifications, AND any
+    paper_fetch_failures matching (source, source_paper_id). The latter has
+    no FK, so storage.delete_paper must clean it up explicitly."""
+    db = Database(f"sqlite:///{tmp_path/'papers.db'}")
+    db.create_schema()
+
+    paper = db.upsert_paper(_build_paper("2404.01812", "Sparse Field Priors"))
+    db.upsert_paper_insight(
+        paper_id=paper.paper_id,
+        insight=PaperInsightRecord(
+            summary_short="x",
+            summary_long="y",
+            novelty_points=["n"],
+            limitations=["l"],
+            applications=["a"],
+            confidence_score=0.5,
+        ),
+    )
+    draft = db.upsert_editorial_draft(
+        paper_id=paper.paper_id,
+        platform="bilibili",
+        title="t",
+        hook="h",
+        markdown_content="# t\n",
+        output_path=str(tmp_path / "outputs" / "editorial" / "fixture.md"),
+    )
+    db.record_notification_attempt(destination="feishu", paper=paper, success=True)
+    # The draft state machine forces generated → in_review → approved → exported.
+    # We need to walk it before record_export_success will accept the call.
+    db.review_editorial_draft(draft.draft_id, actor="reviewer")
+    db.approve_editorial_draft(draft.draft_id, actor="reviewer")
+    db.record_export_success(
+        draft_id=draft.draft_id,
+        exported_by="tester",
+        source_path=str(tmp_path / "outputs" / "editorial" / "fixture.md"),
+        destination_path=str(tmp_path / "outputs" / "exported" / "fixture.md"),
+    )
+    db.create_destination_record(draft_id=draft.draft_id, platform="bilibili")
+
+    # Seed a fetch_failure on the SAME (source, source_paper_id) — there's no
+    # FK or relationship, so this is the row delete_paper must wipe explicitly.
+    record = _build_paper("2404.01812", "Sparse Field Priors")
+    db.record_paper_failure(
+        source="arxiv",
+        record=record,
+        error_phase="upsert",
+        error=RuntimeError("simulated"),
+    )
+
+    result = db.delete_paper(paper.paper_id)
+
+    assert result is not None
+    assert result.paper_id == paper.paper_id
+    assert result.cascade_counts == {
+        "versions": 1,
+        "insights": 1,
+        "drafts": 1,
+        "notifications": 1,
+        "exportRecords": 1,
+        "destinationRecords": 1,
+        "fetchFailures": 1,
+    }
+
+    # Verify nothing remains in the related tables. Since this test only
+    # created one paper, every table being empty is a sufficient assertion.
+    con = sqlite3.connect(f"{tmp_path/'papers.db'}")
+    try:
+        for table in (
+            "papers", "paper_versions", "paper_insights",
+            "editorial_drafts", "notifications", "export_records",
+            "destination_records",
+        ):
+            count = con.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+            assert count == 0, f"expected {table} to be empty, got {count} rows"
+        ff_count = con.execute(
+            "SELECT COUNT(*) FROM paper_fetch_failures "
+            "WHERE source = ? AND source_paper_id = ?",
+            ("arxiv", "2404.01812"),
+        ).fetchone()[0]
+        assert ff_count == 0
+    finally:
+        con.close()
