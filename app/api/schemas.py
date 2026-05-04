@@ -119,6 +119,11 @@ class PaperDetailResponse(PaperDetailItem):
     pass
 
 
+class PaperDeleteResponse(ApiModel):
+    deleted_paper_id: int = Field(alias="deletedPaperId")
+    cascade_counts: dict[str, int] = Field(alias="cascadeCounts")
+
+
 class EditorialDraftItem(ApiModel):
     draft_id: str = Field(alias="draftId")
     paper_id: int = Field(alias="paperId")
